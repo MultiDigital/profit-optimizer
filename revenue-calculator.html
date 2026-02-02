@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revenue Optimizer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      min-height: 100vh;
+      padding: 1.5rem;
+      color: #fff;
+      line-height: 1.5;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    
+    header { text-align: center; margin-bottom: 2rem; }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(90deg, #22d3ee, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header p { color: #94a3b8; font-size: 0.95rem; }
+    
+    .grid { display: flex; flex-direction: column; gap: 1.5rem; margin-bottom: 1.5rem; }
+    
+    .card {
+      background: rgba(30, 41, 59, 0.6);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      border: 1px solid #334155;
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card h2 .icon { font-size: 1.25rem; }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      align-items: end;
+    }
+    .form-row.service-row {
+      grid-template-columns: 1.2fr 0.5fr 0.5fr 0.5fr 0.5fr 0.7fr 0.5fr auto;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-bottom: 0.25rem;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #475569;
+      background: #1e293b;
+      color: #fff;
+      font-size: 0.875rem;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #22d3ee;
+    }
+    
+    .btn {
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      border: none;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .btn-add {
+      background: #22d3ee;
+      color: #0f172a;
+    }
+    .btn-add:hover { background: #06b6d4; }
+    .btn-remove {
+      background: #ef4444;
+      color: #fff;
+      padding: 0.5rem 0.6rem;
+    }
+    .btn-remove:hover { background: #dc2626; }
+    
+    .item-list {
+      margin-top: 1rem;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 0.75rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 0.5rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .item-info { color: #cbd5e1; }
+    .item-info strong { color: #fff; }
+    .item-meta { color: #94a3b8; font-size: 0.8rem; }
+    
+    .results-card {
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(167, 139, 250, 0.1));
+      border-color: rgba(34, 211, 238, 0.3);
+    }
+    .results-card h2 { color: #22d3ee; }
+    
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 700px) { .result-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 400px) { .result-grid { grid-template-columns: 1fr; } }
+    
+    .result-box {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      text-align: center;
+    }
+    .result-box .label {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-bottom: 0.25rem;
+    }
+    .result-box .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .result-box .value.revenue { color: #22d3ee; }
+    .result-box .value.projects { color: #a78bfa; }
+    .result-box .value.bottleneck { color: #fbbf24; }
+    
+    .breakdown { margin-top: 1rem; }
+    .breakdown h3 {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 0.75rem;
+    }
+    .breakdown-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.85rem;
+    }
+    .breakdown-item:last-child { border-bottom: none; }
+    .breakdown-item .name { color: #cbd5e1; }
+    .breakdown-item .count { color: #22d3ee; font-weight: 600; }
+    
+    .utilization-bar {
+      margin-top: 1rem;
+    }
+    .utilization-bar h3 {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-bottom: 0.75rem;
+    }
+    .bar-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .bar-label {
+      width: 110px;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+    }
+    .bar-track {
+      flex: 1;
+      height: 20px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 10px;
+      transition: width 0.3s;
+    }
+    .bar-fill.senior { background: linear-gradient(90deg, #a78bfa, #8b5cf6); }
+    .bar-fill.middle { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+    .bar-fill.junior { background: linear-gradient(90deg, #22d3ee, #06b6d4); }
+    .bar-percent {
+      width: 50px;
+      text-align: right;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: #64748b;
+      font-size: 0.9rem;
+    }
+    
+    .settings-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .settings-row .form-group {
+      flex: 1;
+      min-width: 120px;
+    }
+    
+    /* AI Chat Styles */
+    .ai-card {
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(30, 41, 59, 1));
+      margin-top: 1.5rem;
+    }
+    .chat-messages {
+      max-height: 400px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding: 0.5rem;
+    }
+    .chat-message {
+      display: flex;
+    }
+    .chat-message.user {
+      justify-content: flex-end;
+    }
+    .chat-message.assistant {
+      justify-content: flex-start;
+    }
+    .chat-bubble {
+      max-width: 85%;
+      padding: 0.75rem 1rem;
+      border-radius: 1rem;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .chat-message.user .chat-bubble {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      border-bottom-right-radius: 0.25rem;
+    }
+    .chat-message.assistant .chat-bubble {
+      background: #334155;
+      color: #e2e8f0;
+      border-bottom-left-radius: 0.25rem;
+    }
+    .chat-input-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .chat-input-row input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      border: 1px solid #475569;
+      background: #1e293b;
+      color: #fff;
+      font-size: 0.9rem;
+    }
+    .chat-input-row input:focus {
+      outline: none;
+      border-color: #8b5cf6;
+    }
+    .chat-input-row button {
+      padding: 0.75rem 1.5rem;
+    }
+    .chat-loading {
+      display: flex;
+      gap: 0.3rem;
+      padding: 0.5rem;
+    }
+    .chat-loading span {
+      width: 8px;
+      height: 8px;
+      background: #8b5cf6;
+      border-radius: 50%;
+      animation: bounce 1.4s infinite ease-in-out both;
+    }
+    .chat-loading span:nth-child(1) { animation-delay: -0.32s; }
+    .chat-loading span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📊 Revenue Optimizer</h1>
+      <p>LP optimization with seniority substitution + two-layer profit model</p>
+      <button onclick="clearAllData()" style="margin-top: 0.75rem; padding: 0.4rem 0.8rem; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; border-radius: 0.5rem; cursor: pointer; font-size: 0.75rem;">Clear All Data</button>
+    </header>
+
+    <div class="grid">
+      <!-- Workforce Section -->
+      <div class="card">
+        <h2><span class="icon">👥</span> Workforce</h2>
+        
+        <div class="settings-row">
+          <div class="form-group">
+            <label>Senior (€/day)</label>
+            <input type="number" id="seniorRate" value="296" min="0" onchange="renderServices(); calculate()">
+          </div>
+          <div class="form-group">
+            <label>Middle Up (€/day)</label>
+            <input type="number" id="middleUpRate" value="192" min="0" onchange="renderServices(); calculate()">
+          </div>
+          <div class="form-group">
+            <label>Middle (€/day)</label>
+            <input type="number" id="middleRate" value="160" min="0" onchange="renderServices(); calculate()">
+          </div>
+          <div class="form-group">
+            <label>Junior (€/day)</label>
+            <input type="number" id="juniorRate" value="128" min="0" onchange="renderServices(); calculate()">
+          </div>
+        </div>
+        
+        <div class="form-row" style="grid-template-columns: 1fr 0.8fr 0.7fr 0.7fr 0.8fr auto;">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="memberName" placeholder="e.g., Marco">
+          </div>
+          <div class="form-group">
+            <label>Seniority</label>
+            <select id="memberSeniority">
+              <option value="senior">Senior</option>
+              <option value="middleup">Middle Up</option>
+              <option value="middle">Middle</option>
+              <option value="junior">Junior</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Days/Month</label>
+            <input type="number" id="memberDays" value="20" min="1" max="31">
+          </div>
+          <div class="form-group">
+            <label>Util %</label>
+            <input type="number" id="memberUtil" value="80" min="1" max="100">
+          </div>
+          <div class="form-group">
+            <label>Salary €/yr</label>
+            <input type="number" id="memberSalary" value="50000" min="0" step="1000">
+          </div>
+          <button class="btn btn-add" onclick="addMember()">+ Add</button>
+        </div>
+        
+        <div class="item-list" id="memberList">
+          <div class="empty-state">Add team members to begin</div>
+        </div>
+      </div>
+
+      <!-- Services Section -->
+      <div class="card">
+        <h2><span class="icon">📦</span> Services / Products</h2>
+        
+        <div class="form-row service-row">
+          <div class="form-group">
+            <label>Service Name</label>
+            <input type="text" id="serviceName" placeholder="e.g., Executive Search">
+          </div>
+          <div class="form-group">
+            <label>Senior Days</label>
+            <input type="number" id="serviceSenior" value="1" min="0">
+          </div>
+          <div class="form-group">
+            <label>Mid Up Days</label>
+            <input type="number" id="serviceMiddleUp" value="0" min="0">
+          </div>
+          <div class="form-group">
+            <label>Middle Days</label>
+            <input type="number" id="serviceMiddle" value="0" min="0">
+          </div>
+          <div class="form-group">
+            <label>Junior Days</label>
+            <input type="number" id="serviceJunior" value="6" min="0">
+          </div>
+          <div class="form-group">
+            <label>Price (€)</label>
+            <input type="number" id="servicePrice" value="10000" min="0">
+          </div>
+          <div class="form-group">
+            <label>Max/Year</label>
+            <input type="number" id="serviceMaxYear" placeholder="∞" min="0">
+          </div>
+          <button class="btn btn-add" onclick="addService()">+ Add</button>
+        </div>
+        
+        <div class="item-list" id="serviceList">
+          <div class="empty-state">Add services to begin</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="card results-card">
+      <h2><span class="icon">📈</span> Optimized Revenue Analysis</h2>
+      
+      <div id="resultsContent">
+        <div class="empty-state">Add team members and services to optimize your revenue</div>
+      </div>
+    </div>
+
+    <!-- AI Assistant Section -->
+    <div class="card ai-card">
+      <h2><span class="icon">🤖</span> AI Scenario Assistant</h2>
+      <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Ask questions about your configuration or explore "what-if" scenarios</p>
+      
+      <div id="chatMessages" class="chat-messages">
+        <div class="chat-message assistant">
+          <div class="chat-bubble">Hi! I can help you explore scenarios. Try asking:
+            <ul style="margin: 0.5rem 0 0 1rem; padding: 0;">
+              <li>"What if I hire 1 more junior?"</li>
+              <li>"Which service has the best margin?"</li>
+              <li>"How do I increase utilization?"</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Ask about scenarios..." onkeydown="if(event.key==='Enter') sendChat()">
+        <button class="btn btn-add" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let members = [];
+    let services = [];
+
+    // LocalStorage functions
+    function saveToStorage() {
+      localStorage.setItem('revenueOptimizer_members', JSON.stringify(members));
+      localStorage.setItem('revenueOptimizer_services', JSON.stringify(services));
+      localStorage.setItem('revenueOptimizer_settings', JSON.stringify({
+        seniorRate: document.getElementById('seniorRate').value,
+        middleUpRate: document.getElementById('middleUpRate').value,
+        middleRate: document.getElementById('middleRate').value,
+        juniorRate: document.getElementById('juniorRate').value
+      }));
+    }
+
+    function loadFromStorage() {
+      const savedMembers = localStorage.getItem('revenueOptimizer_members');
+      const savedServices = localStorage.getItem('revenueOptimizer_services');
+      const savedSettings = localStorage.getItem('revenueOptimizer_settings');
+      
+      if (savedMembers) members = JSON.parse(savedMembers);
+      if (savedServices) services = JSON.parse(savedServices);
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        document.getElementById('seniorRate').value = settings.seniorRate || 296;
+        document.getElementById('middleUpRate').value = settings.middleUpRate || 192;
+        document.getElementById('middleRate').value = settings.middleRate || 160;
+        document.getElementById('juniorRate').value = settings.juniorRate || 128;
+      }
+    }
+
+    function clearAllData() {
+      if (!confirm('Clear all workforce and services data?')) return;
+      localStorage.removeItem('revenueOptimizer_members');
+      localStorage.removeItem('revenueOptimizer_services');
+      localStorage.removeItem('revenueOptimizer_settings');
+      members = [];
+      services = [];
+      document.getElementById('seniorRate').value = 296;
+      document.getElementById('middleUpRate').value = 192;
+      document.getElementById('middleRate').value = 160;
+      document.getElementById('juniorRate').value = 128;
+      renderMembers();
+      renderServices();
+      calculate();
+    }
+
+    function addMember() {
+      const name = document.getElementById('memberName').value.trim();
+      const seniority = document.getElementById('memberSeniority').value;
+      const daysPerMonth = parseFloat(document.getElementById('memberDays').value) || 20;
+      const utilization = parseFloat(document.getElementById('memberUtil').value) || 80;
+      const salary = parseFloat(document.getElementById('memberSalary').value) || 50000;
+      
+      if (!name) return alert('Please enter a name');
+      
+      members.push({ id: Date.now(), name, seniority, daysPerMonth, utilization, salary });
+      document.getElementById('memberName').value = '';
+      saveToStorage();
+      renderMembers();
+      calculate();
+    }
+
+    function removeMember(id) {
+      members = members.filter(m => m.id !== id);
+      saveToStorage();
+      renderMembers();
+      calculate();
+    }
+
+    function renderMembers() {
+      const list = document.getElementById('memberList');
+      if (members.length === 0) {
+        list.innerHTML = '<div class="empty-state">Add team members to begin</div>';
+        return;
+      }
+      list.innerHTML = members.map(m => {
+        const days = m.daysPerMonth || 20;
+        const util = m.utilization || 80;
+        const salary = m.salary || 50000;
+        const effectiveDays = days * (util / 100);
+        return `
+        <div class="item">
+          <div style="flex: 1;">
+            <div class="item-info"><strong>${m.name}</strong> · ${m.seniority}</div>
+            <div class="item-meta"><span style="color: #22d3ee;">${effectiveDays.toFixed(1)} eff. days/mo</span> · <span style="color: #f87171;">€${salary.toLocaleString()}/yr</span></div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <label style="font-size: 0.7rem; color: #94a3b8;">Days</label>
+            <input type="number" value="${days}" min="1" max="31"
+              style="width: 45px; padding: 0.25rem; border-radius: 0.25rem; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.8rem;"
+              onchange="updateMember(${m.id}, 'daysPerMonth', this.value)">
+            <label style="font-size: 0.7rem; color: #94a3b8;">Util%</label>
+            <input type="number" value="${util}" min="1" max="100"
+              style="width: 45px; padding: 0.25rem; border-radius: 0.25rem; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.8rem;"
+              onchange="updateMember(${m.id}, 'utilization', this.value)">
+            <label style="font-size: 0.7rem; color: #94a3b8;">Salary€</label>
+            <input type="number" value="${salary}" min="0" step="1000"
+              style="width: 65px; padding: 0.25rem; border-radius: 0.25rem; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.8rem;"
+              onchange="updateMember(${m.id}, 'salary', this.value)">
+            <button class="btn btn-remove" onclick="removeMember(${m.id})">×</button>
+          </div>
+        </div>
+      `}).join('');
+    }
+
+    function updateMember(id, field, value) {
+      const member = members.find(m => m.id === id);
+      if (member) {
+        const defaults = { daysPerMonth: 20, utilization: 80, salary: 50000 };
+        member[field] = parseFloat(value) || defaults[field] || 0;
+        saveToStorage();
+        renderMembers();
+        calculate();
+      }
+    }
+
+    function addService() {
+      const name = document.getElementById('serviceName').value.trim();
+      const seniorDays = parseFloat(document.getElementById('serviceSenior').value) || 0;
+      const middleUpDays = parseFloat(document.getElementById('serviceMiddleUp').value) || 0;
+      const middleDays = parseFloat(document.getElementById('serviceMiddle').value) || 0;
+      const juniorDays = parseFloat(document.getElementById('serviceJunior').value) || 0;
+      const price = parseFloat(document.getElementById('servicePrice').value) || 0;
+      const maxYearInput = document.getElementById('serviceMaxYear').value;
+      const maxYear = maxYearInput ? parseFloat(maxYearInput) : null; // null = unlimited
+      
+      if (!name) return alert('Please enter a service name');
+      if (seniorDays === 0 && middleUpDays === 0 && middleDays === 0 && juniorDays === 0) return alert('Service needs at least some days');
+      
+      services.push({ id: Date.now(), name, seniorDays, middleUpDays, middleDays, juniorDays, price, maxYear });
+      document.getElementById('serviceName').value = '';
+      document.getElementById('serviceMaxYear').value = '';
+      saveToStorage();
+      renderServices();
+      calculate();
+    }
+
+    function removeService(id) {
+      services = services.filter(s => s.id !== id);
+      saveToStorage();
+      renderServices();
+      calculate();
+    }
+
+    function renderServices() {
+      const list = document.getElementById('serviceList');
+      if (services.length === 0) {
+        list.innerHTML = '<div class="empty-state">Add services to begin</div>';
+        return;
+      }
+      
+      const seniorRate = parseFloat(document.getElementById('seniorRate').value) || 0;
+      const middleUpRate = parseFloat(document.getElementById('middleUpRate').value) || 0;
+      const middleRate = parseFloat(document.getElementById('middleRate').value) || 0;
+      const juniorRate = parseFloat(document.getElementById('juniorRate').value) || 0;
+      
+      list.innerHTML = services.map(s => {
+        const middleUpDays = s.middleUpDays || 0;
+        const cost = (s.seniorDays * seniorRate) + (middleUpDays * middleUpRate) + (s.middleDays * middleRate) + (s.juniorDays * juniorRate);
+        const margin = s.price - cost;
+        const marginPct = s.price > 0 ? ((margin / s.price) * 100).toFixed(0) : 0;
+        const marginColor = margin >= 0 ? '#34d399' : '#f87171';
+        const maxYearValue = s.maxYear !== null ? s.maxYear : '';
+        return `
+          <div class="item" style="flex-wrap: wrap; gap: 0.5rem;">
+            <div style="flex: 1; min-width: 150px;">
+              <div class="item-info"><strong>${s.name}</strong> · €${s.price.toLocaleString()}</div>
+              <div class="item-meta"><span style="color: ${marginColor};">margin €${margin.toLocaleString()} · ${marginPct}%</span></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+              <label style="font-size: 0.65rem; color: #a78bfa;">Sr</label>
+              <input type="number" value="${s.seniorDays}" min="0"
+                style="width: 40px; padding: 0.25rem; border-radius: 0.25rem; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.8rem;"
+                onchange="updateService(${s.id}, 'seniorDays', this.value)">
+              <label style="font-size: 0.65rem; color: #f472b6;">MU</label>
+              <input type="number" value="${middleUpDays}" min="0"
+                style="width: 40px; padding: 0.25rem; border-radius: 0.25rem; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.8rem;"
+                onchange="updateService(${s.id}, 'middleUpDays', this.value)">
+              <label style="font-size: 0.65rem; color: #fbbf24;">Mid</label>
+              <input type="number" value="${s.middleDays}" min="0"
+                style="width: 40px; padding: 0.25rem; border-radius: 0.25rem; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.8rem;"
+                onchange="updateService(${s.id}, 'middleDays', this.value)">
+              <label style="font-size: 0.65rem; color: #22d3ee;">Jr</label>
+              <input type="number" value="${s.juniorDays}" min="0"
+                style="width: 40px; padding: 0.25rem; border-radius: 0.25rem; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.8rem;"
+                onchange="updateService(${s.id}, 'juniorDays', this.value)">
+              <label style="font-size: 0.65rem; color: #94a3b8;">Max/yr</label>
+              <input type="number" value="${maxYearValue}" placeholder="∞" min="0" 
+                style="width: 45px; padding: 0.25rem; border-radius: 0.25rem; border: 1px solid #475569; background: #1e293b; color: #fff; font-size: 0.8rem;"
+                onchange="updateService(${s.id}, 'maxYear', this.value)">
+              <button class="btn btn-remove" onclick="removeService(${s.id})">×</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateService(id, field, value) {
+      const service = services.find(s => s.id === id);
+      if (service) {
+        if (field === 'maxYear') {
+          service[field] = value ? parseFloat(value) : null;
+        } else {
+          service[field] = parseFloat(value) || 0;
+        }
+        saveToStorage();
+        renderServices();
+        calculate();
+      }
+    }
+
+    function updateMaxYear(id, value) {
+      updateService(id, 'maxYear', value);
+    }
+
+    function calculate() {
+      saveToStorage(); // Save settings whenever calculate is called
+      const resultsContent = document.getElementById('resultsContent');
+      
+      if (members.length === 0 || services.length === 0) {
+        resultsContent.innerHTML = '<div class="empty-state">Add team members and services to optimize your revenue</div>';
+        return;
+      }
+
+      const seniorRate = parseFloat(document.getElementById('seniorRate').value) || 0;
+      const middleUpRate = parseFloat(document.getElementById('middleUpRate').value) || 0;
+      const middleRate = parseFloat(document.getElementById('middleRate').value) || 0;
+      const juniorRate = parseFloat(document.getElementById('juniorRate').value) || 0;
+
+      // Calculate available YEARLY capacity per seniority (sum of individual capacities)
+      const seniors = members.filter(m => m.seniority === 'senior');
+      const middleUps = members.filter(m => m.seniority === 'middleup');
+      const middles = members.filter(m => m.seniority === 'middle');
+      const juniors = members.filter(m => m.seniority === 'junior');
+      
+      const seniorCapacityMonthly = seniors.reduce((sum, m) => {
+        const days = m.daysPerMonth || 20;
+        const util = (m.utilization || 80) / 100;
+        return sum + (days * util);
+      }, 0);
+      
+      const middleUpCapacityMonthly = middleUps.reduce((sum, m) => {
+        const days = m.daysPerMonth || 20;
+        const util = (m.utilization || 80) / 100;
+        return sum + (days * util);
+      }, 0);
+      
+      const middleCapacityMonthly = middles.reduce((sum, m) => {
+        const days = m.daysPerMonth || 20;
+        const util = (m.utilization || 80) / 100;
+        return sum + (days * util);
+      }, 0);
+      
+      const juniorCapacityMonthly = juniors.reduce((sum, m) => {
+        const days = m.daysPerMonth || 20;
+        const util = (m.utilization || 80) / 100;
+        return sum + (days * util);
+      }, 0);
+      
+      const seniorCapacity = seniorCapacityMonthly * 12;
+      const middleUpCapacity = middleUpCapacityMonthly * 12;
+      const middleCapacity = middleCapacityMonthly * 12;
+      const juniorCapacity = juniorCapacityMonthly * 12;
+
+      // Calculate cost and margin for each service
+      const servicesWithMargin = services.map(s => {
+        const middleUpDays = s.middleUpDays || 0;
+        const cost = (s.seniorDays * seniorRate) + (middleUpDays * middleUpRate) + (s.middleDays * middleRate) + (s.juniorDays * juniorRate);
+        const margin = s.price - cost;
+        const totalDays = s.seniorDays + middleUpDays + s.middleDays + s.juniorDays;
+        const marginEfficiency = totalDays > 0 ? margin / totalDays : 0;
+        return { ...s, middleUpDays, cost, margin, totalDays, marginEfficiency };
+      });
+
+      // Seniority substitution system
+      // Levels: 0=Senior, 1=MiddleUp, 2=Middle, 3=Junior
+      // Higher seniority (lower number) can substitute for lower seniority (higher number)
+      const LEVELS = ['senior', 'middleup', 'middle', 'junior'];
+      const LEVEL_NAMES = ['Senior', 'Middle Up', 'Middle', 'Junior'];
+      const RATES = [seniorRate, middleUpRate, middleRate, juniorRate];
+      
+      // Efficiency gain when substituting (by levels difference)
+      // 1 level down: 5%, 2 levels: 10%, 3 levels: 20%
+      function getEfficiency(levelsDiff) {
+        if (levelsDiff <= 0) return 0;
+        if (levelsDiff === 1) return 0.05;
+        if (levelsDiff === 2) return 0.10;
+        return 0.20; // 3 levels
+      }
+
+      // Generate substitution variants for each service
+      // Key: Generate variants where a level does ALL work at or below it
+      function generateVariants(service) {
+        const variants = [];
+        const { seniorDays, middleDays, juniorDays, price, id, name, maxYear } = service;
+        const middleUpDays = service.middleUpDays || 0;
+        const days = [seniorDays || 0, middleUpDays, middleDays || 0, juniorDays || 0];
+        
+        // Original variant (no substitution)
+        const origCost = days.reduce((sum, d, i) => sum + d * RATES[i], 0);
+        const origTotalDays = days.reduce((sum, d) => sum + d, 0);
+        variants.push({
+          seniorDays: days[0], middleUpDays: days[1], middleDays: days[2], juniorDays: days[3],
+          price, id, name, maxYear,
+          variantId: `${id}_original`,
+          variantName: name,
+          baseId: id,
+          isSubstitution: false,
+          cost: origCost,
+          margin: price - origCost,
+          totalDays: origTotalDays
+        });
+        
+        // Generate "all-in" variants: each level does ALL work at and below its level
+        // E.g., "Senior does all" = Senior does Sr + MU + Mid + Jr work
+        for (let doerLevel = 0; doerLevel < 3; doerLevel++) { // Senior, MiddleUp, Middle can substitute
+          const newDays = [0, 0, 0, 0];
+          let hasSubstitution = false;
+          let substitutedLevels = [];
+          
+          // For each level, either keep it or substitute it
+          for (let workLevel = 0; workLevel <= 3; workLevel++) {
+            if (days[workLevel] <= 0) continue;
+            
+            if (workLevel <= doerLevel) {
+              // Work is at or above doer level - keep as is
+              newDays[workLevel] += days[workLevel];
+            } else {
+              // Work is below doer level - substitute with efficiency
+              const levelsDiff = workLevel - doerLevel;
+              const efficiency = getEfficiency(levelsDiff);
+              const adjustedDays = days[workLevel] * (1 - efficiency);
+              newDays[doerLevel] += adjustedDays;
+              hasSubstitution = true;
+              substitutedLevels.push(LEVEL_NAMES[workLevel]);
+            }
+          }
+          
+          if (!hasSubstitution) continue; // No substitution happened
+          
+          const cost = newDays.reduce((sum, d, i) => sum + d * RATES[i], 0);
+          const margin = price - cost;
+          const totalDays = newDays.reduce((sum, d) => sum + d, 0);
+          
+          const variantLabel = substitutedLevels.length > 1 
+            ? `${LEVEL_NAMES[doerLevel]}→All` 
+            : `${LEVEL_NAMES[doerLevel]}→${substitutedLevels[0]}`;
+          
+          variants.push({
+            seniorDays: newDays[0],
+            middleUpDays: newDays[1],
+            middleDays: newDays[2],
+            juniorDays: newDays[3],
+            price, maxYear,
+            id: `${id}_allin${doerLevel}`,
+            variantId: `${id}_allin${doerLevel}`,
+            variantName: `${name} [${variantLabel}]`,
+            baseId: id,
+            isSubstitution: true,
+            substitutionInfo: `${LEVEL_NAMES[doerLevel]} does ${substitutedLevels.join(' + ')} work`,
+            cost, margin, totalDays,
+            marginEfficiency: totalDays > 0 ? margin / totalDays : 0
+          });
+        }
+        
+        return variants;
+      }
+
+      // Generate all variants
+      const allVariants = servicesWithMargin.flatMap(s => generateVariants(s));
+      
+      // Group variants by baseId for demand cap constraints
+      const variantsByBase = {};
+      allVariants.forEach(v => {
+        if (!variantsByBase[v.baseId]) variantsByBase[v.baseId] = [];
+        variantsByBase[v.baseId].push(v);
+      });
+
+      // ILP solver with substitution variants
+      function solveILP(variants, variantsByBase, seniorCap, middleUpCap, middleCap, juniorCap) {
+        // Sort by margin efficiency for better pruning
+        const sortedVariants = [...variants].sort((a, b) => {
+          const effA = a.margin / (a.totalDays || 1);
+          const effB = b.margin / (b.totalDays || 1);
+          return effB - effA;
+        });
+        
+        let bestSolution = {};
+        let bestMargin = 0;
+        
+        variants.forEach(v => bestSolution[v.variantId] = 0);
+        
+        // Calculate max possible quantity for each variant
+        const maxQty = sortedVariants.map(v => {
+          let max = Infinity;
+          if (v.seniorDays > 0) max = Math.min(max, Math.floor(seniorCap / v.seniorDays));
+          if (v.middleUpDays > 0) max = Math.min(max, Math.floor(middleUpCap / v.middleUpDays));
+          if (v.middleDays > 0) max = Math.min(max, Math.floor(middleCap / v.middleDays));
+          if (v.juniorDays > 0) max = Math.min(max, Math.floor(juniorCap / v.juniorDays));
+          if (v.maxYear !== null) max = Math.min(max, v.maxYear);
+          return Math.max(0, max);
+        });
+        
+        // Track allocation by baseId for shared demand caps
+        function getBaseAllocation(alloc, baseId) {
+          return variantsByBase[baseId].reduce((sum, v) => sum + (alloc[v.variantId] || 0), 0);
+        }
+        
+        // Recursive search with pruning
+        function search(idx, seniorLeft, middleUpLeft, middleLeft, juniorLeft, currentAlloc, currentMargin) {
+          // Pruning: calculate upper bound (only count positive margin variants)
+          let upperBound = currentMargin;
+          for (let i = idx; i < sortedVariants.length; i++) {
+            const v = sortedVariants[i];
+            if (v.margin <= 0) continue; // Only add positive margins to upper bound
+            let canDo = Infinity;
+            if (v.seniorDays > 0) canDo = Math.min(canDo, seniorLeft / v.seniorDays);
+            if (v.middleUpDays > 0) canDo = Math.min(canDo, middleUpLeft / v.middleUpDays);
+            if (v.middleDays > 0) canDo = Math.min(canDo, middleLeft / v.middleDays);
+            if (v.juniorDays > 0) canDo = Math.min(canDo, juniorLeft / v.juniorDays);
+            if (v.maxYear !== null) {
+              const baseAlloc = getBaseAllocation(currentAlloc, v.baseId);
+              canDo = Math.min(canDo, v.maxYear - baseAlloc);
+            }
+            upperBound += Math.max(0, canDo) * v.margin;
+          }
+          // Only prune if upperBound is strictly less (not equal)
+          if (upperBound < bestMargin) return;
+          
+          if (idx >= sortedVariants.length) {
+            if (currentMargin > bestMargin) {
+              bestMargin = currentMargin;
+              bestSolution = {...currentAlloc};
+            }
+            return;
+          }
+          
+          const v = sortedVariants[idx];
+          
+          // Check demand cap across all variants of same base service
+          const baseAlloc = getBaseAllocation(currentAlloc, v.baseId);
+          const demandRoom = v.maxYear !== null ? v.maxYear - baseAlloc : Infinity;
+          
+          const max = Math.min(
+            maxQty[idx],
+            demandRoom,
+            v.seniorDays > 0 ? Math.floor(seniorLeft / v.seniorDays) : Infinity,
+            v.middleUpDays > 0 ? Math.floor(middleUpLeft / v.middleUpDays) : Infinity,
+            v.middleDays > 0 ? Math.floor(middleLeft / v.middleDays) : Infinity,
+            v.juniorDays > 0 ? Math.floor(juniorLeft / v.juniorDays) : Infinity
+          );
+          
+          // Only try positive quantities if margin > 0, otherwise just try 0
+          const startQty = v.margin > 0 ? max : 0;
+          
+          for (let qty = startQty; qty >= 0; qty--) {
+            currentAlloc[v.variantId] = qty;
+            search(
+              idx + 1,
+              seniorLeft - qty * v.seniorDays,
+              middleUpLeft - qty * v.middleUpDays,
+              middleLeft - qty * v.middleDays,
+              juniorLeft - qty * v.juniorDays,
+              currentAlloc,
+              currentMargin + qty * v.margin
+            );
+          }
+        }
+        
+        const initAlloc = {};
+        variants.forEach(v => initAlloc[v.variantId] = 0);
+        
+        search(0, seniorCap, middleUpCap, middleCap, juniorCap, initAlloc, 0);
+        
+        return { solution: bestSolution, margin: bestMargin };
+      }
+
+      // Solve
+      const lpResult = solveILP(allVariants, variantsByBase, seniorCapacity, middleUpCapacity, middleCapacity, juniorCapacity);
+      
+      // Extract allocation from solution
+      let allocation = lpResult.solution;
+      
+      // Check demand caps per base service
+      let demandCapped = {};
+      services.forEach(s => {
+        const totalForService = variantsByBase[s.id].reduce((sum, v) => sum + (allocation[v.variantId] || 0), 0);
+        demandCapped[s.id] = s.maxYear !== null && totalForService >= s.maxYear;
+      });
+
+      // Calculate results (yearly)
+      let projectBreakdown = [];
+      let totalRevenue = 0;
+      let totalMargin = 0;
+      let totalCost = 0;
+      let totalProjects = 0;
+      let usedSeniorDays = 0;
+      let usedMiddleUpDays = 0;
+      let usedMiddleDays = 0;
+      let usedJuniorDays = 0;
+
+      // Process all variants
+      allVariants.forEach(v => {
+        const count = allocation[v.variantId] || 0;
+        if (count > 0) {
+          const revenue = count * v.price;
+          const margin = count * v.margin;
+          const cost = count * v.cost;
+          totalRevenue += revenue;
+          totalMargin += margin;
+          totalCost += cost;
+          totalProjects += count;
+          usedSeniorDays += count * v.seniorDays;
+          usedMiddleUpDays += count * v.middleUpDays;
+          usedMiddleDays += count * v.middleDays;
+          usedJuniorDays += count * v.juniorDays;
+          
+          projectBreakdown.push({ 
+            name: v.variantName, 
+            count, 
+            revenue, 
+            margin,
+            unitMargin: v.margin,
+            isSubstitution: v.isSubstitution,
+            isDemandCapped: demandCapped[v.baseId]
+          });
+        }
+      });
+
+      // Monthly figures for display
+      const monthlyRevenue = totalRevenue / 12;
+      const monthlyMargin = totalMargin / 12;
+      const monthlyProjects = totalProjects / 12;
+
+      // Calculate total fixed costs (salaries)
+      const totalFixedCosts = members.reduce((sum, m) => sum + (m.salary || 50000), 0);
+      const contributionPct = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
+      const trueProfit = totalMargin - totalFixedCosts;
+      const profitMarginPct = totalRevenue > 0 ? (trueProfit / totalRevenue) * 100 : 0;
+      const breakEvenRevenue = totalFixedCosts > 0 && contributionPct > 0 ? (totalFixedCosts / (contributionPct / 100)) : 0;
+
+      // Utilization based on yearly capacity
+      const seniorUtil = seniorCapacity > 0 ? (usedSeniorDays / seniorCapacity) * 100 : 0;
+      const middleUpUtil = middleUpCapacity > 0 ? (usedMiddleUpDays / middleUpCapacity) * 100 : 0;
+      const middleUtil = middleCapacity > 0 ? (usedMiddleDays / middleCapacity) * 100 : 0;
+      const juniorUtil = juniorCapacity > 0 ? (usedJuniorDays / juniorCapacity) * 100 : 0;
+      
+      // Determine bottleneck
+      // First check if ALL allocated services are demand-capped (= Sales bottleneck)
+      const demandCappedCount = projectBreakdown.filter(p => p.isDemandCapped).length;
+      const capacityLimitedCount = projectBreakdown.filter(p => !p.isDemandCapped).length;
+      const allDemandCapped = projectBreakdown.length > 0 && capacityLimitedCount === 0;
+      
+      let bottleneck;
+      let bottleneckNote = '';
+      if (allDemandCapped) {
+        bottleneck = '📈 Sales';
+        bottleneckNote = 'All services at demand cap';
+      } else if (projectBreakdown.length === 0) {
+        bottleneck = 'None';
+        bottleneckNote = 'No projects allocated';
+      } else {
+        const seniorSlack = seniorCapacity - usedSeniorDays;
+        const middleUpSlack = middleUpCapacity - usedMiddleUpDays;
+        const middleSlack = middleCapacity - usedMiddleDays;
+        const juniorSlack = juniorCapacity - usedJuniorDays;
+        const slacks = [
+          { name: 'Senior', slack: seniorSlack, cap: seniorCapacity },
+          { name: 'Middle Up', slack: middleUpSlack, cap: middleUpCapacity },
+          { name: 'Middle', slack: middleSlack, cap: middleCapacity },
+          { name: 'Junior', slack: juniorSlack, cap: juniorCapacity }
+        ].filter(s => s.cap > 0);
+        bottleneck = slacks.length > 0 ? slacks.reduce((min, s) => s.slack < min.slack ? s : min).name : 'None';
+        bottleneckNote = `${demandCappedCount} demand-capped, ${capacityLimitedCount} capacity-limited`;
+      }
+
+      const profitColor = trueProfit >= 0 ? '#34d399' : '#f87171';
+      const profitIcon = trueProfit >= 0 ? '✓' : '⚠';
+
+      resultsContent.innerHTML = `
+        <div style="background: rgba(34, 211, 238, 0.1); border: 1px solid rgba(34, 211, 238, 0.3); border-radius: 0.5rem; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.85rem; color: #22d3ee;">
+          ✨ Linear Programming with seniority substitution (yearly projection)
+        </div>
+        
+        <!-- Financial Summary -->
+        <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid #475569; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem;">
+          <h3 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: #e2e8f0;">💰 Financial Summary</h3>
+          <div style="display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; font-size: 0.85rem;">
+            <span style="color: #94a3b8;">Revenue</span>
+            <span style="color: #60a5fa; text-align: right;">€${totalRevenue.toLocaleString()}</span>
+            
+            <span style="color: #94a3b8;">Contribution Margin</span>
+            <span style="color: #34d399; text-align: right;">€${totalMargin.toLocaleString()} <span style="color: #64748b;">(${contributionPct.toFixed(1)}%)</span></span>
+            
+            <span style="color: #94a3b8;">Fixed Costs (Salaries)</span>
+            <span style="color: #f87171; text-align: right;">- €${totalFixedCosts.toLocaleString()}</span>
+            
+            <div style="grid-column: 1 / -1; border-top: 1px solid #475569; margin: 0.25rem 0;"></div>
+            
+            <span style="color: #e2e8f0; font-weight: 600;">${profitIcon} True Profit</span>
+            <span style="color: ${profitColor}; text-align: right; font-weight: 600;">€${trueProfit.toLocaleString()} <span style="color: #64748b;">(${profitMarginPct.toFixed(1)}%)</span></span>
+          </div>
+          ${breakEvenRevenue > 0 ? `<div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #475569; font-size: 0.8rem; color: #94a3b8;">
+            Break-even revenue: €${Math.round(breakEvenRevenue).toLocaleString()} · You are at ${totalRevenue > 0 ? ((totalRevenue / breakEvenRevenue) * 100).toFixed(0) : 0}% of break-even
+          </div>` : ''}
+        </div>
+
+        <div class="result-grid">
+          <div class="result-box">
+            <div class="label">Yearly Revenue</div>
+            <div class="value revenue">€${totalRevenue.toLocaleString()}</div>
+            <div style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem;">~€${Math.round(monthlyRevenue).toLocaleString()}/month</div>
+          </div>
+          <div class="result-box">
+            <div class="label">Contribution</div>
+            <div class="value" style="color: #34d399;">€${totalMargin.toLocaleString()}</div>
+            <div style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem;">${contributionPct.toFixed(1)}% of revenue</div>
+          </div>
+          <div class="result-box">
+            <div class="label">Projects/Year</div>
+            <div class="value projects">${totalProjects}</div>
+            <div style="font-size: 0.7rem; color: #64748b; margin-top: 0.25rem;">~${monthlyProjects.toFixed(1)}/month</div>
+          </div>
+          <div class="result-box">
+            <div class="label">Bottleneck</div>
+            <div class="value bottleneck">${bottleneck}</div>
+            <div style="font-size: 0.65rem; color: #64748b; margin-top: 0.25rem;">${demandCappedCount} capped / ${projectBreakdown.length} total</div>
+          </div>
+        </div>
+
+        <div class="utilization-bar">
+          <h3>Yearly Capacity Utilization</h3>
+          <div class="bar-container">
+            <div class="bar-label">Senior <span style="color: #64748b;">(${seniorCapacity.toFixed(0)}d)</span></div>
+            <div class="bar-track">
+              <div class="bar-fill senior" style="width: ${Math.min(seniorUtil, 100)}%"></div>
+            </div>
+            <div class="bar-percent">${seniorUtil.toFixed(0)}%</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-label">Middle Up <span style="color: #64748b;">(${middleUpCapacity.toFixed(0)}d)</span></div>
+            <div class="bar-track">
+              <div class="bar-fill" style="background: linear-gradient(90deg, #f472b6, #ec4899); width: ${Math.min(middleUpUtil, 100)}%"></div>
+            </div>
+            <div class="bar-percent">${middleUpUtil.toFixed(0)}%</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-label">Middle <span style="color: #64748b;">(${middleCapacity.toFixed(0)}d)</span></div>
+            <div class="bar-track">
+              <div class="bar-fill middle" style="width: ${Math.min(middleUtil, 100)}%"></div>
+            </div>
+            <div class="bar-percent">${middleUtil.toFixed(0)}%</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-label">Junior <span style="color: #64748b;">(${juniorCapacity.toFixed(0)}d)</span></div>
+            <div class="bar-track">
+              <div class="bar-fill junior" style="width: ${Math.min(juniorUtil, 100)}%"></div>
+            </div>
+            <div class="bar-percent">${juniorUtil.toFixed(0)}%</div>
+          </div>
+        </div>
+
+        <div class="breakdown">
+          <h3>Optimal Project Mix (yearly)</h3>
+          ${projectBreakdown.length > 0 ? projectBreakdown.map(p => {
+            const limitLabel = p.isDemandCapped 
+              ? '<span style="color: #fbbf24; font-size: 0.75rem;"> (demand capped)</span>' 
+              : '<span style="color: #94a3b8; font-size: 0.75rem;"> (capacity limited)</span>';
+            const subStyle = p.isSubstitution 
+              ? 'border-left: 3px solid #f472b6; padding-left: 0.5rem; background: rgba(244, 114, 182, 0.1);' 
+              : '';
+            const subLabel = p.isSubstitution 
+              ? '<span style="color: #f472b6; font-size: 0.7rem;"> ⚡ SUBSTITUTION</span>' 
+              : '';
+            return `
+            <div class="breakdown-item" style="flex-wrap: wrap; ${subStyle}">
+              <span class="name">${p.name}${subLabel}${limitLabel}</span>
+              <span class="count">${p.count}x/yr → €${p.revenue.toLocaleString()} <span style="color: #34d399;">(margin €${p.margin.toLocaleString()})</span></span>
+            </div>
+          `}).join('') : '<div class="empty-state">No profitable projects fit the capacity</div>'}
+        </div>
+
+        <details style="margin-top: 1rem;">
+          <summary style="cursor: pointer; color: #94a3b8; font-size: 0.85rem;">📋 All Staffing Variants (debug)</summary>
+          <div style="margin-top: 0.5rem; font-size: 0.75rem; color: #94a3b8;">
+            ${allVariants.map(v => {
+              const maxPossible = Math.min(
+                v.seniorDays > 0 ? Math.floor(seniorCapacity / v.seniorDays) : Infinity,
+                v.middleUpDays > 0 ? Math.floor(middleUpCapacity / v.middleUpDays) : Infinity,
+                v.middleDays > 0 ? Math.floor(middleCapacity / v.middleDays) : Infinity,
+                v.juniorDays > 0 ? Math.floor(juniorCapacity / v.juniorDays) : Infinity,
+                v.maxYear !== null ? v.maxYear : Infinity
+              );
+              const marginColor = v.margin >= 0 ? '#34d399' : '#f87171';
+              const feasible = maxPossible > 0 && maxPossible !== Infinity;
+              const allocated = allocation[v.variantId] || 0;
+              return `
+                <div style="padding: 0.4rem; border-bottom: 1px solid #334155; ${allocated > 0 ? 'background: rgba(34, 197, 94, 0.1);' : ''}">
+                  <strong>${v.variantName}</strong> ${v.isSubstitution ? '⚡' : ''}
+                  <br>Days: Sr ${v.seniorDays.toFixed(1)} | MU ${v.middleUpDays.toFixed(1)} | Mid ${v.middleDays.toFixed(1)} | Jr ${v.juniorDays.toFixed(1)}
+                  <br>Cost: €${v.cost.toFixed(0)} | <span style="color: ${marginColor};">Margin: €${v.margin.toFixed(0)}</span>
+                  <br>Max possible: ${maxPossible === Infinity ? '∞' : maxPossible} | Allocated: ${allocated}
+                  ${!feasible ? '<br><span style="color: #f87171;">⚠ Not feasible (missing capacity)</span>' : ''}
+                  ${v.margin < 0 ? '<br><span style="color: #f87171;">⚠ Negative margin</span>' : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </details>
+      `;
+    }
+
+    // Initialize
+    // Clear old settings to apply new defaults (one-time migration)
+    const version = localStorage.getItem('revenueOptimizer_version');
+    if (version !== '12') {
+      localStorage.removeItem('revenueOptimizer_settings');
+      localStorage.setItem('revenueOptimizer_version', '12');
+    }
+    loadFromStorage();
+    renderMembers();
+    renderServices();
+    calculate();
+
+    // AI Chat Functions
+    function getConfigurationSummary() {
+      const seniorRate = parseFloat(document.getElementById('seniorRate').value) || 0;
+      const middleUpRate = parseFloat(document.getElementById('middleUpRate').value) || 0;
+      const middleRate = parseFloat(document.getElementById('middleRate').value) || 0;
+      const juniorRate = parseFloat(document.getElementById('juniorRate').value) || 0;
+      
+      // Team summary with salaries
+      const teamByLevel = {
+        senior: members.filter(m => m.seniority === 'senior'),
+        middleup: members.filter(m => m.seniority === 'middleup'),
+        middle: members.filter(m => m.seniority === 'middle'),
+        junior: members.filter(m => m.seniority === 'junior')
+      };
+      
+      const totalFixedCosts = members.reduce((sum, m) => sum + (m.salary || 50000), 0);
+      
+      let teamSummary = 'TEAM:\n';
+      teamSummary += `- Senior (€${seniorRate}/day): ${teamByLevel.senior.length} people`;
+      if (teamByLevel.senior.length > 0) {
+        const seniorCap = teamByLevel.senior.reduce((sum, m) => sum + ((m.daysPerMonth || 20) * (m.utilization || 80) / 100 * 12), 0);
+        const seniorSalaries = teamByLevel.senior.reduce((sum, m) => sum + (m.salary || 50000), 0);
+        teamSummary += ` → ${seniorCap.toFixed(0)} days/year, €${seniorSalaries.toLocaleString()} salaries`;
+      }
+      teamSummary += '\n';
+      
+      teamSummary += `- Middle Up (€${middleUpRate}/day): ${teamByLevel.middleup.length} people`;
+      if (teamByLevel.middleup.length > 0) {
+        const muCap = teamByLevel.middleup.reduce((sum, m) => sum + ((m.daysPerMonth || 20) * (m.utilization || 80) / 100 * 12), 0);
+        const muSalaries = teamByLevel.middleup.reduce((sum, m) => sum + (m.salary || 50000), 0);
+        teamSummary += ` → ${muCap.toFixed(0)} days/year, €${muSalaries.toLocaleString()} salaries`;
+      }
+      teamSummary += '\n';
+      
+      teamSummary += `- Middle (€${middleRate}/day): ${teamByLevel.middle.length} people`;
+      if (teamByLevel.middle.length > 0) {
+        const midCap = teamByLevel.middle.reduce((sum, m) => sum + ((m.daysPerMonth || 20) * (m.utilization || 80) / 100 * 12), 0);
+        const midSalaries = teamByLevel.middle.reduce((sum, m) => sum + (m.salary || 50000), 0);
+        teamSummary += ` → ${midCap.toFixed(0)} days/year, €${midSalaries.toLocaleString()} salaries`;
+      }
+      teamSummary += '\n';
+      
+      teamSummary += `- Junior (€${juniorRate}/day): ${teamByLevel.junior.length} people`;
+      if (teamByLevel.junior.length > 0) {
+        const jrCap = teamByLevel.junior.reduce((sum, m) => sum + ((m.daysPerMonth || 20) * (m.utilization || 80) / 100 * 12), 0);
+        const jrSalaries = teamByLevel.junior.reduce((sum, m) => sum + (m.salary || 50000), 0);
+        teamSummary += ` → ${jrCap.toFixed(0)} days/year, €${jrSalaries.toLocaleString()} salaries`;
+      }
+      teamSummary += '\n';
+      teamSummary += `\nTOTAL FIXED COSTS (Salaries): €${totalFixedCosts.toLocaleString()}/year\n`;
+      
+      // Services summary
+      let servicesSummary = '\nSERVICES:\n';
+      services.forEach(s => {
+        const middleUpDays = s.middleUpDays || 0;
+        const cost = (s.seniorDays * seniorRate) + (middleUpDays * middleUpRate) + (s.middleDays * middleRate) + (s.juniorDays * juniorRate);
+        const margin = s.price - cost;
+        const marginPct = s.price > 0 ? ((margin / s.price) * 100).toFixed(0) : 0;
+        const maxYearStr = s.maxYear ? `, max ${s.maxYear}/yr` : '';
+        servicesSummary += `- ${s.name}: ${s.seniorDays}d Sr + ${middleUpDays}d MU + ${s.middleDays}d Mid + ${s.juniorDays}d Jr = €${s.price} price (€${margin} margin, ${marginPct}%)${maxYearStr}\n`;
+      });
+      
+      // Results summary (get from current calculation)
+      const resultsDiv = document.getElementById('resultsContent');
+      let resultsSummary = '\nCURRENT OPTIMIZATION RESULT:\n';
+      
+      // Extract key numbers from DOM or recalculate
+      const resultBoxes = resultsDiv.querySelectorAll('.result-box .value');
+      if (resultBoxes.length >= 3) {
+        resultsSummary += `- Yearly Revenue: ${resultBoxes[0]?.textContent || 'N/A'}\n`;
+        resultsSummary += `- Yearly Contribution: ${resultBoxes[1]?.textContent || 'N/A'}\n`;
+        resultsSummary += `- Projects/Year: ${resultBoxes[2]?.textContent || 'N/A'}\n`;
+        resultsSummary += `- Bottleneck: ${resultBoxes[3]?.textContent || 'N/A'}\n`;
+        resultsSummary += `- Fixed Costs (Salaries): €${totalFixedCosts.toLocaleString()}\n`;
+        const contributionValue = parseFloat(resultBoxes[1]?.textContent?.replace(/[€,]/g, '') || 0);
+        const trueProfit = contributionValue - totalFixedCosts;
+        resultsSummary += `- TRUE PROFIT: €${trueProfit.toLocaleString()} (Contribution minus Salaries)\n`;
+      }
+      
+      // Get breakdown
+      const breakdownItems = resultsDiv.querySelectorAll('.breakdown-item');
+      if (breakdownItems.length > 0) {
+        resultsSummary += '\nProject Mix:\n';
+        breakdownItems.forEach(item => {
+          const name = item.querySelector('.name')?.textContent?.trim() || '';
+          const count = item.querySelector('.count')?.textContent?.trim() || '';
+          resultsSummary += `- ${name}: ${count}\n`;
+        });
+      }
+      
+      // Get utilization
+      const utilBars = resultsDiv.querySelectorAll('.bar-container');
+      if (utilBars.length > 0) {
+        resultsSummary += '\nCapacity Utilization:\n';
+        utilBars.forEach(bar => {
+          const label = bar.querySelector('.bar-label')?.textContent?.trim() || '';
+          const pct = bar.querySelector('.bar-percent')?.textContent?.trim() || '';
+          resultsSummary += `- ${label}: ${pct}\n`;
+        });
+      }
+      
+      return teamSummary + servicesSummary + resultsSummary;
+    }
+    
+    function addChatMessage(content, isUser) {
+      const chatMessages = document.getElementById('chatMessages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `chat-message ${isUser ? 'user' : 'assistant'}`;
+      messageDiv.innerHTML = `<div class="chat-bubble">${content}</div>`;
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    function addLoadingIndicator() {
+      const chatMessages = document.getElementById('chatMessages');
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'chat-message assistant';
+      loadingDiv.id = 'chatLoading';
+      loadingDiv.innerHTML = `<div class="chat-loading"><span></span><span></span><span></span></div>`;
+      chatMessages.appendChild(loadingDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    function removeLoadingIndicator() {
+      const loading = document.getElementById('chatLoading');
+      if (loading) loading.remove();
+    }
+    
+    async function sendChat() {
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+      if (!message) return;
+      
+      input.value = '';
+      addChatMessage(message, true);
+      addLoadingIndicator();
+      
+      const config = getConfigurationSummary();
+      
+      const systemPrompt = `You are an AI assistant embedded in a Revenue Optimizer tool for a service business. The user has configured their team and services, and you help them explore "what-if" scenarios.
+
+CURRENT CONFIGURATION:
+${config}
+
+CONTEXT:
+- This tool uses Linear Programming to maximize yearly contribution margin
+- Higher seniority can substitute lower (Senior→Middle→Junior) with efficiency gains (5% per level, 20% for 3 levels)
+- The tool shows optimal project mix, capacity utilization, and bottlenecks
+- IMPORTANT: The tool uses a two-layer financial model:
+  * Layer 1: Contribution Margin = Revenue - Variable Costs (day rates)
+  * Layer 2: True Profit = Contribution - Fixed Costs (salaries)
+- Fixed costs are yearly salaries that must be paid regardless of utilization
+- Break-even = the revenue needed to cover all fixed costs
+
+YOUR ROLE:
+- Answer questions about the current setup
+- Suggest improvements and scenarios
+- Do quick calculations when asked (e.g., "What if I hire 1 junior?")
+- When evaluating hiring: consider both the additional capacity AND the additional salary cost
+- Be specific with numbers based on the config above
+- Keep responses concise but insightful
+- Use € for currency
+
+When suggesting changes, be concrete: "Adding 1 junior (192 days/year, €40k salary) would allow ~X more projects, ~€Y additional contribution, but reduce true profit by €Z if not fully utilized"`;
+
+      try {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-5-20250929",
+            max_tokens: 1000,
+            system: systemPrompt,
+            messages: [{ role: "user", content: message }]
+          })
+        });
+        
+        const data = await response.json();
+        removeLoadingIndicator();
+        
+        if (data.content && data.content[0] && data.content[0].text) {
+          // Convert markdown-style formatting to HTML
+          let responseText = data.content[0].text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\n/g, '<br>');
+          addChatMessage(responseText, false);
+        } else if (data.error) {
+          addChatMessage(`Error: ${data.error.message}`, false);
+        } else {
+          addChatMessage('Sorry, I encountered an issue. Please try again.', false);
+        }
+      } catch (err) {
+        removeLoadingIndicator();
+        addChatMessage(`Connection error: ${err.message}. Please try again.`, false);
+      }
+    }
+  </script>
+</body>
+</html>
