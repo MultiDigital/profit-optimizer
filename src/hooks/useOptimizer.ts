@@ -57,6 +57,7 @@ export function useOptimizer(
 
     const rates = {
       senior: debouncedSettings.senior_rate,
+      middle_up: debouncedSettings.middle_up_rate,
       middle: debouncedSettings.middle_rate,
       junior: debouncedSettings.junior_rate,
     };
@@ -65,6 +66,9 @@ export function useOptimizer(
     const capacity = {
       senior: debouncedMembers
         .filter((m) => m.seniority === 'senior')
+        .reduce((sum, m) => sum + m.days_per_month * ((m.capacity_percentage ?? 100) / 100) * 12, 0),
+      middle_up: debouncedMembers
+        .filter((m) => m.seniority === 'middle_up')
         .reduce((sum, m) => sum + m.days_per_month * ((m.capacity_percentage ?? 100) / 100) * 12, 0),
       middle: debouncedMembers
         .filter((m) => m.seniority === 'middle')
@@ -89,6 +93,7 @@ export function useOptimizer(
       allVariants,
       variantsByBase,
       capacity.senior,
+      capacity.middle_up,
       capacity.middle,
       capacity.junior
     );
@@ -98,6 +103,7 @@ export function useOptimizer(
     let totalCost = 0;
     let totalProjects = 0;
     let usedSeniorDays = 0;
+    let usedMiddleUpDays = 0;
     let usedMiddleDays = 0;
     let usedJuniorDays = 0;
 
@@ -123,6 +129,7 @@ export function useOptimizer(
         totalCost += cost;
         totalProjects += count;
         usedSeniorDays += count * v.seniorDays;
+        usedMiddleUpDays += count * v.middleUpDays;
         usedMiddleDays += count * v.middleDays;
         usedJuniorDays += count * v.juniorDays;
 
@@ -152,6 +159,7 @@ export function useOptimizer(
     // Utilization
     const utilization = {
       senior: capacity.senior > 0 ? (usedSeniorDays / capacity.senior) * 100 : 0,
+      middle_up: capacity.middle_up > 0 ? (usedMiddleUpDays / capacity.middle_up) * 100 : 0,
       middle: capacity.middle > 0 ? (usedMiddleDays / capacity.middle) * 100 : 0,
       junior: capacity.junior > 0 ? (usedJuniorDays / capacity.junior) * 100 : 0,
     };
@@ -173,6 +181,7 @@ export function useOptimizer(
     } else {
       const slacks = [
         { name: 'Senior', slack: capacity.senior - usedSeniorDays, cap: capacity.senior },
+        { name: 'Middle Up', slack: capacity.middle_up - usedMiddleUpDays, cap: capacity.middle_up },
         { name: 'Middle', slack: capacity.middle - usedMiddleDays, cap: capacity.middle },
         { name: 'Junior', slack: capacity.junior - usedJuniorDays, cap: capacity.junior },
       ].filter((s) => s.cap > 0);
@@ -196,6 +205,7 @@ export function useOptimizer(
       breakEvenRevenue,
       usedDays: {
         senior: usedSeniorDays,
+        middle_up: usedMiddleUpDays,
         middle: usedMiddleDays,
         junior: usedJuniorDays,
       },

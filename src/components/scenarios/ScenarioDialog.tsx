@@ -5,6 +5,8 @@ import {
   Scenario,
   Member,
   Service,
+  CostCenter,
+  MemberCostCenterAllocation,
   SENIORITY_LABELS,
 } from '@/lib/optimizer/types';
 import {
@@ -17,6 +19,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
 
@@ -26,9 +33,11 @@ interface ScenarioDialogProps {
   scenario?: Scenario | null;
   allMembers: Member[];
   allServices: Service[];
+  costCenters?: CostCenter[];
+  allocations?: MemberCostCenterAllocation[];
   initialMemberIds?: string[];
   initialServiceIds?: string[];
-  onSave: (name: string, memberIds: string[], serviceIds: string[]) => Promise<void>;
+  onSave: (name: string, memberIds: string[], serviceIds: string[], costCenterId?: string | null) => Promise<void>;
   mode: 'create' | 'edit';
 }
 
@@ -38,6 +47,8 @@ export function ScenarioDialog({
   scenario,
   allMembers,
   allServices,
+  costCenters = [],
+  allocations = [],
   initialMemberIds = [],
   initialServiceIds = [],
   onSave,
@@ -46,11 +57,28 @@ export function ScenarioDialog({
   const [name, setName] = useState('');
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [selectedCostCenterId, setSelectedCostCenterId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Track previous open state to detect when dialog opens
   const prevOpen = useRef(open);
+
+  // When a cost center is selected in create mode, pre-select members with allocation > 0
+  const costCenterSelected = mode === 'create' && selectedCostCenterId;
+
+  // Pre-select members when cost center changes
+  useEffect(() => {
+    if (mode !== 'create') return;
+    if (selectedCostCenterId) {
+      const memberIds = allocations
+        .filter((a) => a.cost_center_id === selectedCostCenterId && a.percentage > 0)
+        .map((a) => a.member_id);
+      setSelectedMemberIds(memberIds);
+    } else {
+      setSelectedMemberIds([]);
+    }
+  }, [selectedCostCenterId, mode, allocations]);
 
   // In edit mode, only show items NOT already in the scenario
   const availableMembers = mode === 'edit'
@@ -69,10 +97,12 @@ export function ScenarioDialog({
         // In edit mode, start with empty selection (user picks items to add)
         setSelectedMemberIds([]);
         setSelectedServiceIds([]);
+        setSelectedCostCenterId(null);
       } else {
         setName('');
         setSelectedMemberIds([]);
         setSelectedServiceIds([]);
+        setSelectedCostCenterId(null);
       }
       setError(null);
     }
@@ -118,9 +148,7 @@ export function ScenarioDialog({
 
     setSaving(true);
     try {
-      // In edit mode, pass the newly selected items to add
-      // In create mode, pass all selected items
-      await onSave(name.trim(), selectedMemberIds, selectedServiceIds);
+      await onSave(name.trim(), selectedMemberIds, selectedServiceIds, selectedCostCenterId);
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -152,6 +180,35 @@ export function ScenarioDialog({
             />
           </div>
 
+          {/* Cost Center Selection (create mode only) */}
+          {mode === 'create' && costCenters.length > 0 && (
+            <div className="space-y-2">
+              <Label>Cost Center (optional)</Label>
+              <Select
+                value={selectedCostCenterId ?? '_none'}
+                onValueChange={(value) => setSelectedCostCenterId(value === '_none' ? null : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No cost center" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">No cost center</SelectItem>
+                  {costCenters.map((cc) => (
+                    <SelectItem key={cc.id} value={cc.id}>
+                      {cc.code} - {cc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {costCenterSelected && (
+                <p className="text-xs text-muted-foreground">
+                  Members with allocation &gt; 0 for this cost center will be auto-selected.
+                  Their capacity % and cost % will match their allocation.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Team Members Selection */}
           <div className="space-y-2">
             <Label>
@@ -169,23 +226,30 @@ export function ScenarioDialog({
               </div>
             ) : (
               <div className="border rounded-lg max-h-40 overflow-y-auto">
-                {availableMembers.map((member) => (
-                  <label
-                    key={member.id}
-                    className="flex items-center gap-3 p-2 hover:bg-muted cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedMemberIds.includes(member.id)}
-                      onCheckedChange={() => handleMemberToggle(member.id)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{member.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {SENIORITY_LABELS[member.seniority]} · {formatCurrency(member.salary)}/yr
+                {availableMembers.map((member) => {
+                  const alloc = costCenterSelected
+                    ? allocations.find(
+                        (a) => a.cost_center_id === selectedCostCenterId && a.member_id === member.id && a.percentage > 0
+                      )
+                    : null;
+                  return (
+                    <label
+                      key={member.id}
+                      className="flex items-center gap-3 p-2 hover:bg-muted cursor-pointer"
+                    >
+                      <Checkbox
+                        checked={selectedMemberIds.includes(member.id)}
+                        onCheckedChange={() => handleMemberToggle(member.id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{member.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {SENIORITY_LABELS[member.seniority]} · {alloc ? `${alloc.percentage}% allocation` : `${formatCurrency(member.salary)}/yr`}
+                        </div>
                       </div>
-                    </div>
-                  </label>
-                ))}
+                    </label>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -219,7 +283,7 @@ export function ScenarioDialog({
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{service.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {formatCurrency(service.price)} · {service.senior_days + service.middle_days + service.junior_days} total days
+                        {formatCurrency(service.price)} · {service.senior_days + service.middle_up_days + service.middle_days + service.junior_days} total days
                       </div>
                     </div>
                   </label>

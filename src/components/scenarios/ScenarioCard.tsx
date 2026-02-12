@@ -11,29 +11,35 @@ import {
 } from '@/components/ui';
 import { ScenarioList } from './ScenarioList';
 import { ScenarioDialog } from './ScenarioDialog';
-import { Scenario, Member, Service } from '@/lib/optimizer/types';
+import { Scenario, Member, Service, CostCenter, MemberCostCenterAllocation } from '@/lib/optimizer/types';
 
 interface ScenarioCardProps {
   scenarios: Scenario[];
   allMembers: Member[];
   allServices: Service[];
+  costCenters?: CostCenter[];
+  allocations?: MemberCostCenterAllocation[];
   loading?: boolean;
-  onAddScenario: (name: string, memberIds: string[], serviceIds: string[]) => Promise<void>;
+  onAddScenario: (name: string, memberIds: string[], serviceIds: string[], costCenterId?: string | null) => Promise<void>;
   onDeleteScenario: (id: string) => Promise<void>;
+  onDuplicateScenario: (id: string) => Promise<unknown>;
 }
 
 export function ScenarioCard({
   scenarios,
   allMembers,
   allServices,
+  costCenters = [],
+  allocations = [],
   loading,
   onAddScenario,
   onDeleteScenario,
+  onDuplicateScenario,
 }: ScenarioCardProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const handleCreate = async (name: string, memberIds: string[], serviceIds: string[]) => {
-    await onAddScenario(name, memberIds, serviceIds);
+  const handleCreate = async (name: string, memberIds: string[], serviceIds: string[], costCenterId?: string | null) => {
+    await onAddScenario(name, memberIds, serviceIds, costCenterId);
   };
 
   return (
@@ -58,7 +64,9 @@ export function ScenarioCard({
         ) : (
           <ScenarioList
             scenarios={scenarios}
+            costCenters={costCenters}
             onDelete={onDeleteScenario}
+            onDuplicate={onDuplicateScenario}
           />
         )}
       </CardContent>
@@ -69,6 +77,8 @@ export function ScenarioCard({
         onOpenChange={setIsCreateOpen}
         allMembers={allMembers}
         allServices={allServices}
+        costCenters={costCenters}
+        allocations={allocations}
         onSave={handleCreate}
         mode="create"
       />

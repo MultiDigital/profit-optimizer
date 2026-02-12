@@ -36,6 +36,7 @@ export function ServiceList({ services, settings, onUpdate, onDelete }: ServiceL
   const [formData, setFormData] = useState<ServiceInput>({
     name: '',
     senior_days: 0,
+    middle_up_days: 0,
     middle_days: 0,
     junior_days: 0,
     price: 0,
@@ -48,6 +49,7 @@ export function ServiceList({ services, settings, onUpdate, onDelete }: ServiceL
       setFormData({
         name: editingService.name,
         senior_days: editingService.senior_days,
+        middle_up_days: editingService.middle_up_days,
         middle_days: editingService.middle_days,
         junior_days: editingService.junior_days,
         price: editingService.price,
@@ -66,7 +68,7 @@ export function ServiceList({ services, settings, onUpdate, onDelete }: ServiceL
     }
 
     const totalDays =
-      formData.senior_days + formData.middle_days + formData.junior_days;
+      formData.senior_days + formData.middle_up_days + formData.middle_days + formData.junior_days;
     if (totalDays === 0) {
       setError('Service must require at least 1 day of work');
       return;
@@ -131,13 +133,22 @@ export function ServiceList({ services, settings, onUpdate, onDelete }: ServiceL
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Senior Days</Label>
                 <Input
                   type="number"
                   value={formData.senior_days}
                   onChange={(e) => setFormData({ ...formData, senior_days: parseFloat(e.target.value) || 0 })}
+                  min={0}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Middle Up Days</Label>
+                <Input
+                  type="number"
+                  value={formData.middle_up_days}
+                  onChange={(e) => setFormData({ ...formData, middle_up_days: parseFloat(e.target.value) || 0 })}
                   min={0}
                 />
               </div>

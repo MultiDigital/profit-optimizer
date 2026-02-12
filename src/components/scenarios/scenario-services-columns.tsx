@@ -34,6 +34,13 @@ export const createColumns = ({ onEdit, onDelete }: ColumnActions): ColumnDef<Sc
     ),
   },
   {
+    accessorKey: 'middle_up_days',
+    header: () => <div className="text-right">MU</div>,
+    cell: ({ row }) => (
+      <div className="text-right">{row.getValue('middle_up_days')}</div>
+    ),
+  },
+  {
     accessorKey: 'middle_days',
     header: () => <div className="text-right">Mid</div>,
     cell: ({ row }) => (

@@ -122,16 +122,18 @@ export function useScenarios() {
   }, [scenarios]);
 
   // Add member data to scenario (copy from catalog)
-  const addMemberToScenario = useCallback(async (scenarioId: string, member: Member) => {
+  // allocationPercentage: if provided, used as capacity_percentage and cost_percentage instead of default 100
+  const addMemberToScenario = useCallback(async (scenarioId: string, member: Member, allocationPercentage?: number) => {
     try {
+      const capCost = allocationPercentage ?? 100;
       const input: ScenarioMemberDataInput = {
         source_member_id: member.id,
         name: member.name,
         seniority: member.seniority,
         days_per_month: member.days_per_month,
         salary: member.salary,
-        capacity_percentage: 100, // default to 100%
-        cost_percentage: 100, // default to 100%
+        capacity_percentage: capCost,
+        cost_percentage: capCost,
       };
 
       const { data, error } = await supabase
@@ -160,6 +162,7 @@ export function useScenarios() {
         source_service_id: service.id,
         name: service.name,
         senior_days: service.senior_days,
+        middle_up_days: service.middle_up_days,
         middle_days: service.middle_days,
         junior_days: service.junior_days,
         price: service.price,
@@ -293,6 +296,7 @@ export function useScenarios() {
       source_service_id: catalogService.id,
       name: catalogService.name,
       senior_days: catalogService.senior_days,
+      middle_up_days: catalogService.middle_up_days,
       middle_days: catalogService.middle_days,
       junior_days: catalogService.junior_days,
       price: catalogService.price,
@@ -345,6 +349,83 @@ export function useScenarios() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Duplicate a scenario with all its data
+  const duplicateScenario = useCallback(async (scenarioId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const source = await fetchScenarioWithData(scenarioId);
+      if (!source) throw new Error('Scenario not found');
+
+      // Create the new scenario
+      const { data: newScenario, error: scenarioError } = await supabase
+        .from('scenarios')
+        .insert({
+          user_id: user.id,
+          name: `${source.name} (Copy)`,
+          cost_center_id: source.cost_center_id ?? null,
+        })
+        .select()
+        .single();
+
+      if (scenarioError) throw scenarioError;
+
+      // Copy members
+      if (source.members.length > 0) {
+        const memberRows = source.members.map((m) => ({
+          scenario_id: newScenario.id,
+          source_member_id: m.source_member_id,
+          name: m.name,
+          seniority: m.seniority,
+          days_per_month: m.days_per_month,
+          salary: m.salary,
+          capacity_percentage: m.capacity_percentage,
+          cost_percentage: m.cost_percentage,
+        }));
+
+        const { error: membersError } = await supabase
+          .from('scenario_members_data')
+          .insert(memberRows);
+
+        if (membersError) throw membersError;
+      }
+
+      // Copy services
+      if (source.services.length > 0) {
+        const serviceRows = source.services.map((s) => ({
+          scenario_id: newScenario.id,
+          source_service_id: s.source_service_id,
+          name: s.name,
+          senior_days: s.senior_days,
+          middle_up_days: s.middle_up_days,
+          middle_days: s.middle_days,
+          junior_days: s.junior_days,
+          price: s.price,
+          max_year: s.max_year,
+        }));
+
+        const { error: servicesError } = await supabase
+          .from('scenario_services_data')
+          .insert(serviceRows);
+
+        if (servicesError) throw servicesError;
+      }
+
+      setScenarios((prev) => [newScenario, ...prev]);
+      toast.success('Scenario duplicated', {
+        description: `${newScenario.name} has been created`,
+      });
+      return newScenario as Scenario;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to duplicate scenario';
+      setError(message);
+      toast.error('Failed to duplicate scenario', { description: message });
+      throw err;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchScenarioWithData]);
+
   // Fetch existing member/service IDs in a scenario (for the add dialog to know what's already added)
   const fetchScenarioSourceIds = useCallback(async (scenarioId: string) => {
     try {
@@ -389,6 +470,7 @@ export function useScenarios() {
     addScenario,
     updateScenario,
     deleteScenario,
+    duplicateScenario,
     addMemberToScenario,
     addServiceToScenario,
     updateScenarioMember,

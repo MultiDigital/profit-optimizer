@@ -42,6 +42,13 @@ export const createColumns = ({ onEdit, onDelete, settings }: ColumnActions): Co
     ),
   },
   {
+    accessorKey: 'middle_up_days',
+    header: () => <div className="text-right">MU</div>,
+    cell: ({ row }) => (
+      <div className="text-right text-orange-500">{row.getValue('middle_up_days')}</div>
+    ),
+  },
+  {
     accessorKey: 'middle_days',
     header: () => <div className="text-right">Mid</div>,
     cell: ({ row }) => (
@@ -66,6 +73,7 @@ export const createColumns = ({ onEdit, onDelete, settings }: ColumnActions): Co
 
       const cost =
         service.senior_days * settings.senior_rate +
+        service.middle_up_days * settings.middle_up_rate +
         service.middle_days * settings.middle_rate +
         service.junior_days * settings.junior_rate;
 

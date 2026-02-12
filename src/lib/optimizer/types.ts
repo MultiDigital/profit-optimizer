@@ -1,10 +1,11 @@
 // Seniority levels
-export type SeniorityLevel = 'senior' | 'middle' | 'junior';
+export type SeniorityLevel = 'senior' | 'middle_up' | 'middle' | 'junior';
 
-export const SENIORITY_LEVELS: SeniorityLevel[] = ['senior', 'middle', 'junior'];
+export const SENIORITY_LEVELS: SeniorityLevel[] = ['senior', 'middle_up', 'middle', 'junior'];
 
 export const SENIORITY_LABELS: Record<SeniorityLevel, string> = {
   senior: 'Senior',
+  middle_up: 'Middle Up',
   middle: 'Middle',
   junior: 'Junior',
 };
@@ -27,6 +28,7 @@ export interface Service {
   user_id: string;
   name: string;
   senior_days: number;
+  middle_up_days: number;
   middle_days: number;
   junior_days: number;
   price: number;
@@ -38,6 +40,7 @@ export interface Settings {
   id: string;
   user_id: string;
   senior_rate: number;
+  middle_up_rate: number;
   middle_rate: number;
   junior_rate: number;
   created_at?: string;
@@ -56,6 +59,7 @@ export interface MemberInput {
 export interface ServiceInput {
   name: string;
   senior_days: number;
+  middle_up_days: number;
   middle_days: number;
   junior_days: number;
   price: number;
@@ -63,6 +67,7 @@ export interface ServiceInput {
 
 export interface SettingsInput {
   senior_rate: number;
+  middle_up_rate: number;
   middle_rate: number;
   junior_rate: number;
 }
@@ -75,6 +80,7 @@ export interface ServiceVariant {
   baseId: string;
   name: string;
   seniorDays: number;
+  middleUpDays: number;
   middleDays: number;
   juniorDays: number;
   price: number;
@@ -89,6 +95,7 @@ export interface ServiceVariant {
 
 export interface Capacity {
   senior: number;
+  middle_up: number;
   middle: number;
   junior: number;
 }
@@ -122,6 +129,7 @@ export interface OptimizationResult {
   capacity: Capacity;
   utilization: {
     senior: number;
+    middle_up: number;
     middle: number;
     junior: number;
   };
@@ -134,6 +142,7 @@ export interface OptimizationResult {
 // Default values
 export const DEFAULT_SETTINGS: SettingsInput = {
   senior_rate: 296,
+  middle_up_rate: 192,
   middle_rate: 160,
   junior_rate: 128,
 };
@@ -149,22 +158,49 @@ export const DEFAULT_MEMBER: MemberInput = {
 export const DEFAULT_SERVICE: ServiceInput = {
   name: '',
   senior_days: 1,
+  middle_up_days: 0,
   middle_days: 0,
   junior_days: 6,
   price: 10000,
 };
+
+// Cost Center types
+export interface CostCenter {
+  id: string;
+  user_id: string;
+  code: string;
+  name: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CostCenterInput {
+  code: string;
+  name: string;
+}
+
+export interface MemberCostCenterAllocation {
+  id: string;
+  member_id: string;
+  cost_center_id: string;
+  percentage: number;
+  created_at?: string;
+  updated_at?: string;
+}
 
 // Scenario types
 export interface Scenario {
   id: string;
   user_id: string;
   name: string;
+  cost_center_id: string | null;
   created_at?: string;
   updated_at?: string;
 }
 
 export interface ScenarioInput {
   name: string;
+  cost_center_id?: string | null;
 }
 
 // Scenario member data - full copy with scenario-specific values
@@ -189,6 +225,7 @@ export interface ScenarioServiceData {
   source_service_id: string | null; // for resync, null if source deleted
   name: string;
   senior_days: number;
+  middle_up_days: number;
   middle_days: number;
   junior_days: number;
   price: number;
@@ -212,6 +249,7 @@ export interface ScenarioServiceDataInput {
   source_service_id?: string | null;
   name: string;
   senior_days: number;
+  middle_up_days: number;
   middle_days: number;
   junior_days: number;
   price: number;

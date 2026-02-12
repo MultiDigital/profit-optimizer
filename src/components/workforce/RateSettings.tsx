@@ -15,6 +15,7 @@ export function RateSettings({ settings, onUpdate }: RateSettingsProps) {
     const numValue = parseFloat(value) || 0;
     onUpdate({
       senior_rate: settings.senior_rate,
+      middle_up_rate: settings.middle_up_rate,
       middle_rate: settings.middle_rate,
       junior_rate: settings.junior_rate,
       [field]: numValue,
@@ -22,13 +23,22 @@ export function RateSettings({ settings, onUpdate }: RateSettingsProps) {
   };
 
   return (
-    <div className="grid grid-cols-3 gap-3 mb-4">
+    <div className="grid grid-cols-4 gap-3 mb-4">
       <div className="space-y-1">
         <Label>Senior (€/day)</Label>
         <Input
           type="number"
           value={settings.senior_rate}
           onChange={(e) => handleChange('senior_rate', e.target.value)}
+          min={0}
+        />
+      </div>
+      <div className="space-y-1">
+        <Label>Middle Up (€/day)</Label>
+        <Input
+          type="number"
+          value={settings.middle_up_rate}
+          onChange={(e) => handleChange('middle_up_rate', e.target.value)}
           min={0}
         />
       </div>

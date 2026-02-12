@@ -10,19 +10,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Scenario } from '@/lib/optimizer/types';
+import { Scenario, CostCenter } from '@/lib/optimizer/types';
 
 interface ColumnActions {
   onDelete: (scenario: Scenario) => void;
+  onDuplicate: (id: string) => Promise<unknown>;
+  costCenters?: CostCenter[];
 }
 
-export const createColumns = ({ onDelete }: ColumnActions): ColumnDef<Scenario>[] => [
+export const createColumns = ({ onDelete, onDuplicate, costCenters = [] }: ColumnActions): ColumnDef<Scenario>[] => [
   {
     accessorKey: 'name',
     header: 'Name',
     cell: ({ row }) => (
       <div className="font-medium">{row.getValue('name')}</div>
     ),
+  },
+  {
+    id: 'cost_center',
+    header: 'Cost Center',
+    cell: ({ row }) => {
+      const ccId = row.original.cost_center_id;
+      if (!ccId) return <div className="text-muted-foreground">-</div>;
+      const cc = costCenters.find((c) => c.id === ccId);
+      return <div className="text-muted-foreground">{cc?.code ?? '-'}</div>;
+    },
   },
   {
     accessorKey: 'created_at',
@@ -58,6 +70,11 @@ export const createColumns = ({ onDelete }: ColumnActions): ColumnDef<Scenario>[
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => onDuplicate(scenario.id)}
+              >
+                Duplicate
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => onDelete(scenario)}
                 className="text-red-500 focus:text-red-500"

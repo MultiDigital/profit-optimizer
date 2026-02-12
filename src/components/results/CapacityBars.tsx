@@ -46,6 +46,13 @@ export function CapacityBars({ result }: CapacityBarsProps) {
           value={utilization.senior}
         />
       )}
+      {capacity.middle_up > 0 && (
+        <ProgressItem
+          label="Middle Up"
+          subLabel={`${capacity.middle_up.toFixed(0)}d`}
+          value={utilization.middle_up}
+        />
+      )}
       {capacity.middle > 0 && (
         <ProgressItem
           label="Middle"

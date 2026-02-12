@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { useSettings, useMembers, useServices, useScenarios, useOptimizer } from '@/hooks';
+import { useSettings, useMembers, useServices, useScenarios, useOptimizer, useCostCenters } from '@/hooks';
 import { ResultsCard } from '@/components/results';
 import { ScenarioDialog } from '@/components/scenarios';
 import { ScenarioMembersDataTable } from '@/components/scenarios/scenario-members-data-table';
@@ -62,6 +62,7 @@ export default function ScenarioViewPage() {
   const { settings } = useSettings();
   const { members: allMembers } = useMembers();
   const { services: allServices } = useServices();
+  const { costCenters } = useCostCenters();
   const {
     updateScenario,
     deleteScenario,
@@ -96,6 +97,7 @@ export default function ScenarioViewPage() {
   const [editingService, setEditingService] = useState<ScenarioServiceData | null>(null);
   const [serviceFormData, setServiceFormData] = useState({
     senior_days: 0,
+    middle_up_days: 0,
     middle_days: 0,
     junior_days: 0,
     price: 0,
@@ -167,6 +169,7 @@ export default function ScenarioViewPage() {
     if (editingService) {
       setServiceFormData({
         senior_days: editingService.senior_days,
+        middle_up_days: editingService.middle_up_days,
         middle_days: editingService.middle_days,
         junior_days: editingService.junior_days,
         price: editingService.price,
@@ -303,7 +306,15 @@ export default function ScenarioViewPage() {
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold">{scenario.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">{scenario.name}</h1>
+                {scenario.cost_center_id && (() => {
+                  const cc = costCenters.find((c) => c.id === scenario.cost_center_id);
+                  return cc ? (
+                    <Badge variant="secondary">{cc.code}</Badge>
+                  ) : null;
+                })()}
+              </div>
               <p className="text-sm text-muted-foreground">
                 {scenario.members.length} team member{scenario.members.length !== 1 ? 's' : ''} · {scenario.services.length} service{scenario.services.length !== 1 ? 's' : ''}
               </p>
@@ -500,6 +511,16 @@ export default function ScenarioViewPage() {
                   type="number"
                   value={serviceFormData.senior_days}
                   onChange={(e) => setServiceFormData({ ...serviceFormData, senior_days: parseFloat(e.target.value) || 0 })}
+                  min={0}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Middle Up Days</Label>
+                <Input
+                  type="number"
+                  value={serviceFormData.middle_up_days}
+                  onChange={(e) => setServiceFormData({ ...serviceFormData, middle_up_days: parseFloat(e.target.value) || 0 })}
                   min={0}
                 />
               </div>

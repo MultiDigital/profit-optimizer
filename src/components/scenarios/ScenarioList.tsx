@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Scenario } from '@/lib/optimizer/types';
+import { Scenario, CostCenter } from '@/lib/optimizer/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,12 +19,16 @@ import { useState } from 'react';
 
 interface ScenarioListProps {
   scenarios: Scenario[];
+  costCenters?: CostCenter[];
   onDelete: (id: string) => Promise<void>;
+  onDuplicate: (id: string) => Promise<unknown>;
 }
 
 export function ScenarioList({
   scenarios,
+  costCenters = [],
   onDelete,
+  onDuplicate,
 }: ScenarioListProps) {
   const router = useRouter();
   const [deletingScenario, setDeletingScenario] = useState<Scenario | null>(null);
@@ -43,8 +47,10 @@ export function ScenarioList({
     () =>
       createColumns({
         onDelete: setDeletingScenario,
+        onDuplicate,
+        costCenters,
       }),
-    []
+    [onDuplicate, costCenters]
   );
 
   return (

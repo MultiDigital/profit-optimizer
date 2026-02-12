@@ -16,6 +16,7 @@ export function solveILP(
   variants: ServiceVariant[],
   variantsByBase: Record<string, ServiceVariant[]>,
   seniorCap: number,
+  middleUpCap: number,
   middleCap: number,
   juniorCap: number
 ): SolverResult {
@@ -39,6 +40,7 @@ export function solveILP(
   const maxQty = sortedVariants.map((v) => {
     let max = Infinity;
     if (v.seniorDays > 0) max = Math.min(max, Math.floor(seniorCap / v.seniorDays));
+    if (v.middleUpDays > 0) max = Math.min(max, Math.floor(middleUpCap / v.middleUpDays));
     if (v.middleDays > 0) max = Math.min(max, Math.floor(middleCap / v.middleDays));
     if (v.juniorDays > 0) max = Math.min(max, Math.floor(juniorCap / v.juniorDays));
     if (v.maxYear !== null) max = Math.min(max, v.maxYear);
@@ -57,6 +59,7 @@ export function solveILP(
   function search(
     idx: number,
     seniorLeft: number,
+    middleUpLeft: number,
     middleLeft: number,
     juniorLeft: number,
     currentAlloc: Allocation,
@@ -75,6 +78,7 @@ export function solveILP(
       if (v.margin <= 0) continue; // Only add positive margins to upper bound
       let canDo = Infinity;
       if (v.seniorDays > 0) canDo = Math.min(canDo, seniorLeft / v.seniorDays);
+      if (v.middleUpDays > 0) canDo = Math.min(canDo, middleUpLeft / v.middleUpDays);
       if (v.middleDays > 0) canDo = Math.min(canDo, middleLeft / v.middleDays);
       if (v.juniorDays > 0) canDo = Math.min(canDo, juniorLeft / v.juniorDays);
       if (v.maxYear !== null) {
@@ -105,6 +109,7 @@ export function solveILP(
       maxQty[idx],
       demandRoom,
       v.seniorDays > 0 ? Math.floor(seniorLeft / v.seniorDays) : Infinity,
+      v.middleUpDays > 0 ? Math.floor(middleUpLeft / v.middleUpDays) : Infinity,
       v.middleDays > 0 ? Math.floor(middleLeft / v.middleDays) : Infinity,
       v.juniorDays > 0 ? Math.floor(juniorLeft / v.juniorDays) : Infinity
     );
@@ -117,6 +122,7 @@ export function solveILP(
       search(
         idx + 1,
         seniorLeft - qty * v.seniorDays,
+        middleUpLeft - qty * v.middleUpDays,
         middleLeft - qty * v.middleDays,
         juniorLeft - qty * v.juniorDays,
         currentAlloc,
@@ -130,7 +136,7 @@ export function solveILP(
     initAlloc[v.variantId] = 0;
   });
 
-  search(0, seniorCap, middleCap, juniorCap, initAlloc, 0);
+  search(0, seniorCap, middleUpCap, middleCap, juniorCap, initAlloc, 0);
 
   return { solution: bestSolution, margin: bestMargin, hitIterationLimit: hitLimit };
 }
