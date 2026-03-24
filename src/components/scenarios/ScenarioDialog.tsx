@@ -8,6 +8,7 @@ import {
   CostCenter,
   MemberCostCenterAllocation,
   SENIORITY_LABELS,
+  MEMBER_CATEGORY_LABELS,
 } from '@/lib/optimizer/types';
 import {
   Button,
@@ -242,9 +243,9 @@ export function ScenarioDialog({
                         onCheckedChange={() => handleMemberToggle(member.id)}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{member.name}</div>
+                        <div className="text-sm font-medium truncate">{member.first_name} {member.last_name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {SENIORITY_LABELS[member.seniority]} · {alloc ? `${alloc.percentage}% allocation` : `${formatCurrency(member.salary)}/yr`}
+                          {member.seniority ? SENIORITY_LABELS[member.seniority] : MEMBER_CATEGORY_LABELS[member.category]} · {alloc ? `${alloc.percentage}% allocation` : `${formatCurrency(member.salary)}/yr`}
                         </div>
                       </div>
                     </label>
@@ -283,7 +284,7 @@ export function ScenarioDialog({
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{service.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {formatCurrency(service.price)} · {service.senior_days + service.middle_up_days + service.middle_days + service.junior_days} total days
+                        {formatCurrency(service.price)} · {service.senior_days + service.middle_up_days + service.middle_days + service.junior_days + service.stage_days} total days
                       </div>
                     </div>
                   </label>

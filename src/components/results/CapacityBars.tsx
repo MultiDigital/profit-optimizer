@@ -67,6 +67,13 @@ export function CapacityBars({ result }: CapacityBarsProps) {
           value={utilization.junior}
         />
       )}
+      {capacity.stage > 0 && (
+        <ProgressItem
+          label="Stage"
+          subLabel={`${capacity.stage.toFixed(0)}d`}
+          value={utilization.stage}
+        />
+      )}
     </div>
   );
 }

@@ -15,7 +15,10 @@ import {
   Member,
   CostCenter,
   MemberCostCenterAllocation,
-  SENIORITY_LABELS,
+  SENIORITY_SHORT_LABELS,
+  MEMBER_CATEGORY_LABELS,
+  CapacitySettings,
+  computeEffectiveDays,
 } from '@/lib/optimizer/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -23,6 +26,7 @@ interface AllocationMatrixProps {
   members: Member[];
   costCenters: CostCenter[];
   allocations: MemberCostCenterAllocation[];
+  capacitySettings: CapacitySettings;
   onSetAllocation: (memberId: string, costCenterId: string, percentage: number) => Promise<void>;
 }
 
@@ -30,6 +34,7 @@ export function AllocationMatrix({
   members,
   costCenters,
   allocations,
+  capacitySettings,
   onSetAllocation,
 }: AllocationMatrixProps) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -63,9 +68,14 @@ export function AllocationMatrix({
       for (const member of members) {
         const pct = getAllocation(member.id, costCenterId);
         if (pct > 0) {
-          const annualDays = member.days_per_month * 12 * (member.utilization / 100) * (pct / 100);
           const annualCost = member.salary * (pct / 100);
-          totalDays += annualDays;
+          if (member.category !== 'segnalatore') {
+            const baseDays = member.category === 'freelance'
+              ? capacitySettings.yearly_workable_days
+              : computeEffectiveDays(capacitySettings.yearly_workable_days, capacitySettings.festivita_nazionali, capacitySettings.ferie, capacitySettings.malattia, capacitySettings.formazione);
+            const annualDays = baseDays * (pct / 100);
+            totalDays += annualDays;
+          }
           totalCost += annualCost;
         }
       }
@@ -125,18 +135,18 @@ export function AllocationMatrix({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-auto max-h-[calc(100vh-16rem)] [&_[data-slot=table-container]]:overflow-visible">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="sticky left-0 bg-background z-10 min-w-[180px]">Member</TableHead>
-            <TableHead className="text-center min-w-[60px]">Level</TableHead>
+            <TableHead className="sticky left-0 top-0 bg-background z-30 min-w-[180px]">Member</TableHead>
+            <TableHead className="sticky top-0 bg-background z-20 text-center min-w-[60px]">Level</TableHead>
             {costCenters.map((cc) => (
-              <TableHead key={cc.id} className="text-center min-w-[70px]">
+              <TableHead key={cc.id} className="sticky top-0 bg-background z-20 text-center min-w-[80px]">
                 {cc.code}
               </TableHead>
             ))}
-            <TableHead className="text-center min-w-[60px]">Total</TableHead>
+            <TableHead className="sticky top-0 bg-background z-20 text-center min-w-[80px]">Total</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -147,11 +157,11 @@ export function AllocationMatrix({
             return (
               <TableRow key={member.id}>
                 <TableCell className="sticky left-0 bg-background z-10 font-medium">
-                  {member.name}
+                  {member.last_name}, {member.first_name}
                 </TableCell>
                 <TableCell className="text-center">
                   <Badge variant="outline" className="text-xs">
-                    {SENIORITY_LABELS[member.seniority]?.substring(0, 3)}
+                    {member.seniority ? SENIORITY_SHORT_LABELS[member.seniority] : MEMBER_CATEGORY_LABELS[member.category]}
                   </Badge>
                 </TableCell>
                 {costCenters.map((cc) => {
@@ -167,7 +177,7 @@ export function AllocationMatrix({
                       {isEditing ? (
                         <Input
                           type="number"
-                          className="h-7 w-16 mx-auto text-center text-xs"
+                          className="h-7 w-20 mx-auto text-center text-xs"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           onBlur={() => handleCellBlur(member.id, cc.id)}
@@ -179,18 +189,32 @@ export function AllocationMatrix({
                         />
                       ) : (
                         <button
-                          className="h-7 w-16 mx-auto text-xs rounded border border-transparent hover:border-muted-foreground/20 hover:bg-muted transition-colors cursor-pointer inline-flex items-center justify-center"
+                          className="h-auto py-1 w-20 mx-auto text-xs rounded border border-transparent hover:border-muted-foreground/20 hover:bg-muted transition-colors cursor-pointer inline-flex items-center justify-center"
                           onClick={() => handleCellClick(member.id, cc.id)}
                         >
-                          {pct > 0 ? `${pct}%` : '-'}
+                          {pct > 0 ? (
+                            <span className="flex flex-col leading-tight">
+                              <span>{pct}%</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {formatCurrency(Math.round(member.salary * (pct / 100)))}
+                              </span>
+                            </span>
+                          ) : '-'}
                         </button>
                       )}
                     </TableCell>
                   );
                 })}
                 <TableCell className="text-center font-medium">
-                  <span className={isOver ? 'text-red-500' : total === 100 ? 'text-green-500' : ''}>
-                    {total}%
+                  <span className="flex flex-col leading-tight">
+                    <span className={isOver ? 'text-red-500' : total === 100 ? 'text-green-500' : ''}>
+                      {total}%
+                    </span>
+                    {total > 0 && (
+                      <span className="text-[10px] text-muted-foreground font-normal">
+                        {formatCurrency(Math.round(member.salary * (total / 100)))}
+                      </span>
+                    )}
                   </span>
                 </TableCell>
               </TableRow>
@@ -205,11 +229,16 @@ export function AllocationMatrix({
               const { totalDays } = getCostCenterTotals(cc.id);
               return (
                 <TableCell key={cc.id} className="text-center text-xs">
-                  {totalDays > 0 ? Math.round(totalDays) : '-'}
+                  {totalDays > 0 ? totalDays.toFixed(1) : '-'}
                 </TableCell>
               );
             })}
-            <TableCell />
+            <TableCell className="text-center text-xs">
+              {(() => {
+                const grandDays = costCenters.reduce((sum, cc) => sum + getCostCenterTotals(cc.id).totalDays, 0);
+                return grandDays > 0 ? grandDays.toFixed(1) : '-';
+              })()}
+            </TableCell>
           </TableRow>
 
           {/* Cost totals row */}
@@ -224,7 +253,12 @@ export function AllocationMatrix({
                 </TableCell>
               );
             })}
-            <TableCell />
+            <TableCell className="text-center text-xs">
+              {(() => {
+                const grandCost = costCenters.reduce((sum, cc) => sum + getCostCenterTotals(cc.id).totalCost, 0);
+                return grandCost > 0 ? formatCurrency(Math.round(grandCost)) : '-';
+              })()}
+            </TableCell>
           </TableRow>
         </TableBody>
       </Table>

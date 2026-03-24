@@ -7,6 +7,10 @@ import {
   SENIORITY_LABELS,
   SENIORITY_LEVELS,
   SeniorityLevel,
+  MEMBER_CATEGORIES,
+  MEMBER_CATEGORY_LABELS,
+  MemberCategory,
+  CapacitySettings,
 } from '@/lib/optimizer/types';
 import {
   Button,
@@ -36,19 +40,22 @@ import { createColumns } from './columns';
 
 interface MemberListProps {
   members: Member[];
+  capacitySettings: CapacitySettings;
   onUpdate: (id: string, input: Partial<MemberInput>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
-export function MemberList({ members, onUpdate, onDelete }: MemberListProps) {
+export function MemberList({ members, capacitySettings, onUpdate, onDelete }: MemberListProps) {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [deletingMember, setDeletingMember] = useState<Member | null>(null);
   const [formData, setFormData] = useState<MemberInput>({
-    name: '',
+    first_name: '',
+    last_name: '',
+    category: 'dipendente',
     seniority: 'middle',
-    days_per_month: 20,
-    utilization: 80,
     salary: 50000,
+    chargeable_days: null,
+    ft_percentage: 100,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +63,13 @@ export function MemberList({ members, onUpdate, onDelete }: MemberListProps) {
   useEffect(() => {
     if (editingMember) {
       setFormData({
-        name: editingMember.name,
+        first_name: editingMember.first_name,
+        last_name: editingMember.last_name,
+        category: editingMember.category,
         seniority: editingMember.seniority,
-        days_per_month: editingMember.days_per_month,
-        utilization: editingMember.utilization,
         salary: editingMember.salary,
+        chargeable_days: editingMember.chargeable_days ?? null,
+        ft_percentage: editingMember.ft_percentage ?? 100,
       });
       setError(null);
     }
@@ -70,18 +79,8 @@ export function MemberList({ members, onUpdate, onDelete }: MemberListProps) {
     if (!editingMember) return;
     setError(null);
 
-    if (!formData.name.trim()) {
-      setError('Member name is required');
-      return;
-    }
-
-    if (formData.days_per_month < 1 || formData.days_per_month > 31) {
-      setError('Days per month must be between 1 and 31');
-      return;
-    }
-
-    if (formData.utilization < 1 || formData.utilization > 100) {
-      setError('Utilization must be between 1% and 100%');
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      setError('First name and last name are required');
       return;
     }
 
@@ -110,8 +109,9 @@ export function MemberList({ members, onUpdate, onDelete }: MemberListProps) {
       createColumns({
         onEdit: setEditingMember,
         onDelete: setDeletingMember,
+        capacitySettings,
       }),
-    []
+    [capacitySettings]
   );
 
   return (
@@ -131,55 +131,97 @@ export function MemberList({ members, onUpdate, onDelete }: MemberListProps) {
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>First Name</Label>
+                <Input
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name</Label>
+                <Input
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Seniority</Label>
+              <Label>Category</Label>
               <Select
-                value={formData.seniority}
-                onValueChange={(value) => setFormData({ ...formData, seniority: value as SeniorityLevel })}
+                value={formData.category ?? 'dipendente'}
+                onValueChange={(value) => {
+                  const category = value as MemberCategory;
+                  setFormData({
+                    ...formData,
+                    category,
+                    seniority: category === 'segnalatore' ? null : (formData.seniority ?? 'middle'),
+                    chargeable_days: category === 'freelance' ? formData.chargeable_days : null,
+                    ft_percentage: category === 'dipendente' ? (formData.ft_percentage ?? 100) : 100,
+                  });
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select level" />
+                  <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SENIORITY_LEVELS.map((level) => (
-                    <SelectItem key={level} value={level}>
-                      {SENIORITY_LABELS[level]}
+                  {MEMBER_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {MEMBER_CATEGORY_LABELS[cat]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {(formData.category ?? 'dipendente') !== 'segnalatore' && (
               <div className="space-y-2">
-                <Label>Days/Month</Label>
-                <Input
-                  type="number"
-                  value={formData.days_per_month}
-                  onChange={(e) => setFormData({ ...formData, days_per_month: parseFloat(e.target.value) || 20 })}
-                  min={1}
-                  max={31}
-                />
+                <Label>Seniority</Label>
+                <Select
+                  value={formData.seniority ?? 'middle'}
+                  onValueChange={(value) => setFormData({ ...formData, seniority: value as SeniorityLevel })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SENIORITY_LEVELS.map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {SENIORITY_LABELS[level]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            )}
+
+            {(formData.category ?? 'dipendente') === 'dipendente' && (
               <div className="space-y-2">
-                <Label>Utilization %</Label>
+                <Label>Full-Time %</Label>
                 <Input
                   type="number"
-                  value={formData.utilization}
-                  onChange={(e) => setFormData({ ...formData, utilization: parseFloat(e.target.value) || 80 })}
+                  value={formData.ft_percentage ?? 100}
+                  onChange={(e) => setFormData({ ...formData, ft_percentage: parseFloat(e.target.value) || 100 })}
                   min={1}
                   max={100}
                 />
               </div>
-            </div>
+            )}
+
+            {(formData.category ?? 'dipendente') === 'freelance' && (
+              <div className="space-y-2">
+                <Label>Chargeable Days/Year</Label>
+                <Input
+                  type="number"
+                  value={formData.chargeable_days ?? ''}
+                  onChange={(e) => setFormData({ ...formData, chargeable_days: e.target.value ? parseFloat(e.target.value) : null })}
+                  min={0}
+                  placeholder="Auto (uses yearly workable days)"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Salary (EUR/year)</Label>
@@ -209,7 +251,7 @@ export function MemberList({ members, onUpdate, onDelete }: MemberListProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove team member?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove <strong>{deletingMember?.name}</strong> from the team?
+              Are you sure you want to remove <strong>{deletingMember?.first_name} {deletingMember?.last_name}</strong> from the team?
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

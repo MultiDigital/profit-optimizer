@@ -1,24 +1,48 @@
-// Seniority levels
-export type SeniorityLevel = 'senior' | 'middle_up' | 'middle' | 'junior';
+// Member categories
+export type MemberCategory = 'dipendente' | 'segnalatore' | 'freelance';
 
-export const SENIORITY_LEVELS: SeniorityLevel[] = ['senior', 'middle_up', 'middle', 'junior'];
+export const MEMBER_CATEGORIES: MemberCategory[] = ['dipendente', 'segnalatore', 'freelance'];
+
+export const MEMBER_CATEGORY_LABELS: Record<MemberCategory, string> = {
+  dipendente: 'Dipendente',
+  segnalatore: 'Segnalatore',
+  freelance: 'Freelance',
+};
+
+export const DEFAULT_MEMBER_CATEGORY: MemberCategory = 'dipendente';
+
+// Seniority levels
+export type SeniorityLevel = 'senior' | 'middle_up' | 'middle' | 'junior' | 'stage';
+
+export const SENIORITY_LEVELS: SeniorityLevel[] = ['senior', 'middle_up', 'middle', 'junior', 'stage'];
 
 export const SENIORITY_LABELS: Record<SeniorityLevel, string> = {
   senior: 'Senior',
   middle_up: 'Middle Up',
   middle: 'Middle',
   junior: 'Junior',
+  stage: 'Stage',
+};
+
+export const SENIORITY_SHORT_LABELS: Record<SeniorityLevel, string> = {
+  senior: 'Sen',
+  middle_up: 'MUp',
+  middle: 'Mid',
+  junior: 'Jun',
+  stage: 'Stg',
 };
 
 // Database models
 export interface Member {
   id: string;
   user_id: string;
-  name: string;
-  seniority: SeniorityLevel;
-  days_per_month: number;
-  utilization: number;
+  first_name: string;
+  last_name: string;
+  category: MemberCategory;
+  seniority: SeniorityLevel | null;
   salary: number;
+  chargeable_days?: number | null;
+  ft_percentage?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -31,6 +55,7 @@ export interface Service {
   middle_up_days: number;
   middle_days: number;
   junior_days: number;
+  stage_days: number;
   price: number;
   created_at?: string;
   updated_at?: string;
@@ -43,17 +68,25 @@ export interface Settings {
   middle_up_rate: number;
   middle_rate: number;
   junior_rate: number;
+  stage_rate: number;
+  festivita_nazionali: number;
+  yearly_workable_days: number;
+  ferie: number;
+  malattia: number;
+  formazione: number;
   created_at?: string;
   updated_at?: string;
 }
 
 // Form input types (for creating/updating)
 export interface MemberInput {
-  name: string;
-  seniority: SeniorityLevel;
-  days_per_month: number;
-  utilization: number;
+  first_name: string;
+  last_name: string;
+  category?: MemberCategory;
+  seniority: SeniorityLevel | null;
   salary: number;
+  chargeable_days?: number | null;
+  ft_percentage?: number | null;
 }
 
 export interface ServiceInput {
@@ -62,6 +95,7 @@ export interface ServiceInput {
   middle_up_days: number;
   middle_days: number;
   junior_days: number;
+  stage_days: number;
   price: number;
 }
 
@@ -70,6 +104,12 @@ export interface SettingsInput {
   middle_up_rate: number;
   middle_rate: number;
   junior_rate: number;
+  stage_rate: number;
+  festivita_nazionali: number;
+  yearly_workable_days: number;
+  ferie: number;
+  malattia: number;
+  formazione: number;
 }
 
 // Optimization types
@@ -83,6 +123,7 @@ export interface ServiceVariant {
   middleUpDays: number;
   middleDays: number;
   juniorDays: number;
+  stageDays: number;
   price: number;
   maxYear: number | null;
   cost: number;
@@ -98,6 +139,7 @@ export interface Capacity {
   middle_up: number;
   middle: number;
   junior: number;
+  stage: number;
 }
 
 export interface Allocation {
@@ -132,6 +174,7 @@ export interface OptimizationResult {
     middle_up: number;
     middle: number;
     junior: number;
+    stage: number;
   };
   bottleneck: string;
   bottleneckNote: string;
@@ -145,14 +188,22 @@ export const DEFAULT_SETTINGS: SettingsInput = {
   middle_up_rate: 192,
   middle_rate: 160,
   junior_rate: 128,
+  stage_rate: 80,
+  festivita_nazionali: 8,
+  yearly_workable_days: 261,
+  ferie: 25,
+  malattia: 3,
+  formazione: 6,
 };
 
 export const DEFAULT_MEMBER: MemberInput = {
-  name: '',
+  first_name: '',
+  last_name: '',
+  category: 'dipendente',
   seniority: 'middle',
-  days_per_month: 20,
-  utilization: 80,
   salary: 50000,
+  chargeable_days: null,
+  ft_percentage: 100,
 };
 
 export const DEFAULT_SERVICE: ServiceInput = {
@@ -161,6 +212,7 @@ export const DEFAULT_SERVICE: ServiceInput = {
   middle_up_days: 0,
   middle_days: 0,
   junior_days: 6,
+  stage_days: 0,
   price: 10000,
 };
 
@@ -208,10 +260,13 @@ export interface ScenarioMemberData {
   id: string;
   scenario_id: string;
   source_member_id: string | null; // for resync, null if source deleted
-  name: string;
-  seniority: SeniorityLevel;
-  days_per_month: number;
+  first_name: string;
+  last_name: string;
+  category: MemberCategory;
+  seniority: SeniorityLevel | null;
   salary: number;
+  chargeable_days?: number | null;
+  ft_percentage?: number | null;
   capacity_percentage: number; // percentage (1-100), scales available capacity/days
   cost_percentage: number; // percentage (1-100), scales salary cost contribution
   created_at?: string;
@@ -228,6 +283,7 @@ export interface ScenarioServiceData {
   middle_up_days: number;
   middle_days: number;
   junior_days: number;
+  stage_days: number;
   price: number;
   max_year: number | null; // only exists at scenario level
   created_at?: string;
@@ -237,10 +293,13 @@ export interface ScenarioServiceData {
 // Input types for scenario data
 export interface ScenarioMemberDataInput {
   source_member_id?: string | null;
-  name: string;
-  seniority: SeniorityLevel;
-  days_per_month: number;
+  first_name: string;
+  last_name: string;
+  category?: MemberCategory;
+  seniority: SeniorityLevel | null;
   salary: number;
+  chargeable_days?: number | null;
+  ft_percentage?: number | null;
   capacity_percentage?: number; // percentage (1-100), defaults to 100
   cost_percentage?: number; // percentage (1-100), defaults to 100
 }
@@ -252,6 +311,7 @@ export interface ScenarioServiceDataInput {
   middle_up_days: number;
   middle_days: number;
   junior_days: number;
+  stage_days: number;
   price: number;
   max_year: number | null;
 }
@@ -265,3 +325,23 @@ export interface ScenarioWithData extends Scenario {
 export const DEFAULT_SCENARIO: ScenarioInput = {
   name: '',
 };
+
+// Helper function to compute effective days from capacity components
+export function computeEffectiveDays(
+  yearlyWorkableDays: number,
+  festivitaNazionali: number,
+  ferie: number,
+  malattia: number,
+  formazione: number
+): number {
+  return yearlyWorkableDays - festivitaNazionali - ferie - malattia - formazione;
+}
+
+// Convenience type for passing capacity settings around
+export interface CapacitySettings {
+  yearly_workable_days: number;
+  festivita_nazionali: number;
+  ferie: number;
+  malattia: number;
+  formazione: number;
+}

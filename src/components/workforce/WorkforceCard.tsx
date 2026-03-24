@@ -30,11 +30,16 @@ import {
   SENIORITY_LEVELS,
   SENIORITY_LABELS,
   SeniorityLevel,
+  MEMBER_CATEGORIES,
+  MEMBER_CATEGORY_LABELS,
+  MemberCategory,
+  CapacitySettings,
 } from '@/lib/optimizer/types';
 
 interface WorkforceCardProps {
   members: Member[];
   loading?: boolean;
+  capacitySettings: CapacitySettings;
   onAddMember: (input: MemberInput) => Promise<void>;
   onUpdateMember: (id: string, input: Partial<MemberInput>) => Promise<void>;
   onDeleteMember: (id: string) => Promise<void>;
@@ -43,6 +48,7 @@ interface WorkforceCardProps {
 export function WorkforceCard({
   members,
   loading,
+  capacitySettings,
   onAddMember,
   onUpdateMember,
   onDeleteMember,
@@ -65,18 +71,8 @@ export function WorkforceCard({
   const handleSave = async () => {
     setError(null);
 
-    if (!formData.name.trim()) {
-      setError('Member name is required');
-      return;
-    }
-
-    if (formData.days_per_month < 1 || formData.days_per_month > 31) {
-      setError('Days per month must be between 1 and 31');
-      return;
-    }
-
-    if (formData.utilization < 1 || formData.utilization > 100) {
-      setError('Utilization must be between 1% and 100%');
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      setError('First name and last name are required');
       return;
     }
 
@@ -118,56 +114,99 @@ export function WorkforceCard({
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input
-                    value={formData.name}
-                    placeholder="e.g., Marco"
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>First Name</Label>
+                    <Input
+                      value={formData.first_name}
+                      placeholder="e.g., Marco"
+                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Name</Label>
+                    <Input
+                      value={formData.last_name}
+                      placeholder="e.g., Rossi"
+                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Seniority</Label>
+                  <Label>Category</Label>
                   <Select
-                    value={formData.seniority}
-                    onValueChange={(value) => setFormData({ ...formData, seniority: value as SeniorityLevel })}
+                    value={formData.category ?? 'dipendente'}
+                    onValueChange={(value) => {
+                      const category = value as MemberCategory;
+                      setFormData({
+                        ...formData,
+                        category,
+                        seniority: category === 'segnalatore' ? null : (formData.seniority ?? 'middle'),
+                        chargeable_days: category === 'freelance' ? formData.chargeable_days : null,
+                        ft_percentage: category === 'dipendente' ? (formData.ft_percentage ?? 100) : 100,
+                      });
+                    }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select level" />
+                      <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {SENIORITY_LEVELS.map((level) => (
-                        <SelectItem key={level} value={level}>
-                          {SENIORITY_LABELS[level]}
+                      {MEMBER_CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {MEMBER_CATEGORY_LABELS[cat]}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {(formData.category ?? 'dipendente') !== 'segnalatore' && (
                   <div className="space-y-2">
-                    <Label>Days/Month</Label>
-                    <Input
-                      type="number"
-                      value={formData.days_per_month}
-                      onChange={(e) => setFormData({ ...formData, days_per_month: parseFloat(e.target.value) || 20 })}
-                      min={1}
-                      max={31}
-                    />
+                    <Label>Seniority</Label>
+                    <Select
+                      value={formData.seniority ?? 'middle'}
+                      onValueChange={(value) => setFormData({ ...formData, seniority: value as SeniorityLevel })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SENIORITY_LEVELS.map((level) => (
+                          <SelectItem key={level} value={level}>
+                            {SENIORITY_LABELS[level]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                )}
+
+                {(formData.category ?? 'dipendente') === 'dipendente' && (
                   <div className="space-y-2">
-                    <Label>Utilization %</Label>
+                    <Label>Full-Time %</Label>
                     <Input
                       type="number"
-                      value={formData.utilization}
-                      onChange={(e) => setFormData({ ...formData, utilization: parseFloat(e.target.value) || 80 })}
+                      value={formData.ft_percentage ?? 100}
+                      onChange={(e) => setFormData({ ...formData, ft_percentage: parseFloat(e.target.value) || 100 })}
                       min={1}
                       max={100}
                     />
                   </div>
-                </div>
+                )}
+
+                {(formData.category ?? 'dipendente') === 'freelance' && (
+                  <div className="space-y-2">
+                    <Label>Chargeable Days/Year</Label>
+                    <Input
+                      type="number"
+                      value={formData.chargeable_days ?? ''}
+                      onChange={(e) => setFormData({ ...formData, chargeable_days: e.target.value ? parseFloat(e.target.value) : null })}
+                      min={0}
+                      placeholder="Auto (uses yearly workable days)"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Salary (EUR/year)</Label>
@@ -203,6 +242,7 @@ export function WorkforceCard({
         ) : (
           <MemberList
             members={members}
+            capacitySettings={capacitySettings}
             onUpdate={onUpdateMember}
             onDelete={onDeleteMember}
           />

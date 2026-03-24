@@ -61,7 +61,7 @@ export function ServicesCard({
     }
 
     const totalDays =
-      formData.senior_days + formData.middle_up_days + formData.middle_days + formData.junior_days;
+      formData.senior_days + formData.middle_up_days + formData.middle_days + formData.junior_days + formData.stage_days;
     if (totalDays === 0) {
       setError('Service must require at least 1 day of work');
       return;
@@ -121,7 +121,7 @@ export function ServicesCard({
                   />
                 </div>
 
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-5 gap-4">
                   <div className="space-y-2">
                     <Label>Senior Days</Label>
                     <Input
@@ -162,6 +162,17 @@ export function ServicesCard({
                       value={formData.junior_days}
                       onChange={(e) =>
                         setFormData({ ...formData, junior_days: parseFloat(e.target.value) || 0 })
+                      }
+                      min={0}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Stage Days</Label>
+                    <Input
+                      type="number"
+                      value={formData.stage_days}
+                      onChange={(e) =>
+                        setFormData({ ...formData, stage_days: parseFloat(e.target.value) || 0 })
                       }
                       min={0}
                     />

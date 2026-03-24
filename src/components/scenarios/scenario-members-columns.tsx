@@ -10,35 +10,44 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ScenarioMemberData, SENIORITY_LABELS } from '@/lib/optimizer/types';
+import { ScenarioMemberData, SENIORITY_LABELS, MEMBER_CATEGORY_LABELS, MemberCategory, CapacitySettings, computeEffectiveDays } from '@/lib/optimizer/types';
 import { formatCurrency } from '@/lib/utils';
 
 interface ColumnActions {
   onEdit: (member: ScenarioMemberData) => void;
   onDelete: (member: ScenarioMemberData) => void;
+  capacitySettings: CapacitySettings;
 }
 
-export const createColumns = ({ onEdit, onDelete }: ColumnActions): ColumnDef<ScenarioMemberData>[] => [
+export const createColumns = ({ onEdit, onDelete, capacitySettings }: ColumnActions): ColumnDef<ScenarioMemberData>[] => [
   {
-    accessorKey: 'name',
-    header: 'Name',
+    accessorKey: 'last_name',
+    header: 'Last Name',
     cell: ({ row }) => (
-      <div className="font-medium">{row.getValue('name')}</div>
+      <div className="font-medium">{row.getValue('last_name')}</div>
+    ),
+  },
+  {
+    accessorKey: 'first_name',
+    header: 'First Name',
+    cell: ({ row }) => (
+      <div className="font-medium">{row.getValue('first_name')}</div>
+    ),
+  },
+  {
+    accessorKey: 'category',
+    header: 'Category',
+    cell: ({ row }) => (
+      <div>{MEMBER_CATEGORY_LABELS[row.getValue('category') as MemberCategory]}</div>
     ),
   },
   {
     accessorKey: 'seniority',
     header: 'Seniority',
-    cell: ({ row }) => (
-      <div>{SENIORITY_LABELS[row.getValue('seniority') as keyof typeof SENIORITY_LABELS]}</div>
-    ),
-  },
-  {
-    accessorKey: 'days_per_month',
-    header: () => <div className="text-right">Days/Mo</div>,
-    cell: ({ row }) => (
-      <div className="text-right">{row.getValue('days_per_month')}</div>
-    ),
+    cell: ({ row }) => {
+      const seniority = row.getValue('seniority') as keyof typeof SENIORITY_LABELS | null;
+      return <div>{seniority ? SENIORITY_LABELS[seniority] : '-'}</div>;
+    },
   },
   {
     accessorKey: 'capacity_percentage',
@@ -58,9 +67,24 @@ export const createColumns = ({ onEdit, onDelete }: ColumnActions): ColumnDef<Sc
     id: 'effectiveDays',
     header: () => <div className="text-right">Eff. Days/Yr</div>,
     cell: ({ row }) => {
-      const days = row.original.days_per_month;
-      const capacityPct = row.original.capacity_percentage ?? 100;
-      const effective = days * (capacityPct / 100) * 12;
+      const m = row.original;
+      if (m.category === 'segnalatore') {
+        return <div className="text-right text-muted-foreground">-</div>;
+      }
+      const capacityPct = m.capacity_percentage ?? 100;
+      const rawDays = (m.category === 'freelance' && m.chargeable_days != null)
+        ? m.chargeable_days
+        : m.category === 'freelance'
+        ? capacitySettings.yearly_workable_days
+        : computeEffectiveDays(
+            capacitySettings.yearly_workable_days,
+            capacitySettings.festivita_nazionali,
+            capacitySettings.ferie,
+            capacitySettings.malattia,
+            capacitySettings.formazione
+          ) * ((m.ft_percentage ?? 100) / 100);
+      const baseDays = rawDays;
+      const effective = baseDays * (capacityPct / 100);
       return (
         <div className="text-right text-cyan-500">{effective.toFixed(0)}</div>
       );

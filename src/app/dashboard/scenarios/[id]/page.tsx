@@ -51,6 +51,11 @@ import {
   SENIORITY_LABELS,
   SENIORITY_LEVELS,
   SeniorityLevel,
+  MEMBER_CATEGORIES,
+  MEMBER_CATEGORY_LABELS,
+  MemberCategory,
+  CapacitySettings,
+  DEFAULT_SETTINGS,
 } from '@/lib/optimizer/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -85,9 +90,11 @@ export default function ScenarioViewPage() {
   // Member editing state
   const [editingMember, setEditingMember] = useState<ScenarioMemberData | null>(null);
   const [memberFormData, setMemberFormData] = useState({
-    seniority: 'middle' as SeniorityLevel,
-    days_per_month: 20,
+    category: 'dipendente' as MemberCategory,
+    seniority: 'middle' as SeniorityLevel | null,
     salary: 50000,
+    chargeable_days: null as number | null,
+    ft_percentage: 100,
     capacity_percentage: 100,
     cost_percentage: 100,
   });
@@ -100,6 +107,7 @@ export default function ScenarioViewPage() {
     middle_up_days: 0,
     middle_days: 0,
     junior_days: 0,
+    stage_days: 0,
     price: 0,
     max_year: null as number | null,
   });
@@ -128,9 +136,11 @@ export default function ScenarioViewPage() {
   useEffect(() => {
     if (editingMember) {
       setMemberFormData({
+        category: editingMember.category,
         seniority: editingMember.seniority,
-        days_per_month: editingMember.days_per_month,
         salary: editingMember.salary,
+        chargeable_days: editingMember.chargeable_days ?? null,
+        ft_percentage: editingMember.ft_percentage ?? 100,
         capacity_percentage: editingMember.capacity_percentage ?? 100,
         cost_percentage: editingMember.cost_percentage ?? 100,
       });
@@ -159,9 +169,17 @@ export default function ScenarioViewPage() {
   };
 
   // Member columns for data table
+  const capacitySettings: CapacitySettings = {
+    yearly_workable_days: settings?.yearly_workable_days ?? DEFAULT_SETTINGS.yearly_workable_days,
+    festivita_nazionali: settings?.festivita_nazionali ?? DEFAULT_SETTINGS.festivita_nazionali,
+    ferie: settings?.ferie ?? DEFAULT_SETTINGS.ferie,
+    malattia: settings?.malattia ?? DEFAULT_SETTINGS.malattia,
+    formazione: settings?.formazione ?? DEFAULT_SETTINGS.formazione,
+  };
   const memberColumns = useMemo(
-    () => createMemberColumns({ onEdit: setEditingMember, onDelete: setDeletingMember }),
-    []
+    () => createMemberColumns({ onEdit: setEditingMember, onDelete: setDeletingMember, capacitySettings }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [capacitySettings.yearly_workable_days, capacitySettings.festivita_nazionali, capacitySettings.ferie, capacitySettings.malattia, capacitySettings.formazione]
   );
 
   // Populate service form when editing
@@ -172,6 +190,7 @@ export default function ScenarioViewPage() {
         middle_up_days: editingService.middle_up_days,
         middle_days: editingService.middle_days,
         junior_days: editingService.junior_days,
+        stage_days: editingService.stage_days,
         price: editingService.price,
         max_year: editingService.max_year,
       });
@@ -399,40 +418,85 @@ export default function ScenarioViewPage() {
         <Sheet open={!!editingMember} onOpenChange={(open) => !open && setEditingMember(null)}>
           <SheetContent side="right">
             <SheetHeader>
-              <SheetTitle>Edit {editingMember?.name}</SheetTitle>
+              <SheetTitle>Edit {editingMember?.first_name} {editingMember?.last_name}</SheetTitle>
               <SheetDescription>Modify team member properties for this scenario</SheetDescription>
             </SheetHeader>
 
             <div className="flex flex-col gap-4 px-4 py-4">
               <div className="space-y-2">
-                <Label>Seniority</Label>
+                <Label>Category</Label>
                 <Select
-                  value={memberFormData.seniority}
-                  onValueChange={(value) => setMemberFormData({ ...memberFormData, seniority: value as SeniorityLevel })}
+                  value={memberFormData.category}
+                  onValueChange={(value) => {
+                    const category = value as MemberCategory;
+                    setMemberFormData({
+                      ...memberFormData,
+                      category,
+                      seniority: category === 'segnalatore' ? null : (memberFormData.seniority ?? 'middle'),
+                      chargeable_days: category === 'freelance' ? memberFormData.chargeable_days : null,
+                      ft_percentage: category === 'dipendente' ? (memberFormData.ft_percentage ?? 100) : 100,
+                    });
+                  }}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select level" />
+                    <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {SENIORITY_LEVELS.map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {SENIORITY_LABELS[level]}
+                    {MEMBER_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {MEMBER_CATEGORY_LABELS[cat]}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Days/Month</Label>
-                <Input
-                  type="number"
-                  value={memberFormData.days_per_month}
-                  onChange={(e) => setMemberFormData({ ...memberFormData, days_per_month: parseFloat(e.target.value) || 20 })}
-                  min={1}
-                  max={31}
-                />
-              </div>
+              {memberFormData.category !== 'segnalatore' && (
+                <div className="space-y-2">
+                  <Label>Seniority</Label>
+                  <Select
+                    value={memberFormData.seniority ?? 'middle'}
+                    onValueChange={(value) => setMemberFormData({ ...memberFormData, seniority: value as SeniorityLevel })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SENIORITY_LEVELS.map((level) => (
+                        <SelectItem key={level} value={level}>
+                          {SENIORITY_LABELS[level]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {memberFormData.category === 'dipendente' && (
+                <div className="space-y-2">
+                  <Label>Full-Time %</Label>
+                  <Input
+                    type="number"
+                    value={memberFormData.ft_percentage ?? 100}
+                    onChange={(e) => setMemberFormData({ ...memberFormData, ft_percentage: parseFloat(e.target.value) || 100 })}
+                    min={1}
+                    max={100}
+                  />
+                </div>
+              )}
+
+              {memberFormData.category === 'freelance' && (
+                <div className="space-y-2">
+                  <Label>Chargeable Days/Year</Label>
+                  <Input
+                    type="number"
+                    value={memberFormData.chargeable_days ?? ''}
+                    onChange={(e) => setMemberFormData({ ...memberFormData, chargeable_days: e.target.value ? parseFloat(e.target.value) : null })}
+                    min={0}
+                    placeholder="Auto (uses yearly workable days)"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Salary (EUR/year)</Label>
@@ -546,6 +610,16 @@ export default function ScenarioViewPage() {
               </div>
 
               <div className="space-y-2">
+                <Label>Stage Days</Label>
+                <Input
+                  type="number"
+                  value={serviceFormData.stage_days}
+                  onChange={(e) => setServiceFormData({ ...serviceFormData, stage_days: parseFloat(e.target.value) || 0 })}
+                  min={0}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label>Max/Year</Label>
                 <Input
                   type="number"
@@ -574,7 +648,7 @@ export default function ScenarioViewPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Remove team member?</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to remove <strong>{deletingMember?.name}</strong> from this scenario?
+                Are you sure you want to remove <strong>{deletingMember?.first_name} {deletingMember?.last_name}</strong> from this scenario?
                 This only removes them from the scenario, not from your catalog.
               </AlertDialogDescription>
             </AlertDialogHeader>

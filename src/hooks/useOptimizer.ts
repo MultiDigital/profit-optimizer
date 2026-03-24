@@ -1,12 +1,12 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Member, Service, Settings, OptimizationResult, ScenarioServiceData, ScenarioMemberData } from '@/lib/optimizer/types';
+import { Member, Service, Settings, OptimizationResult, ScenarioServiceData, ScenarioMemberData, MemberCategory, computeEffectiveDays } from '@/lib/optimizer/types';
 
 // Service type that can have optional max_year (for optimizer compatibility)
 type OptimizableService = (Service | ScenarioServiceData) & { max_year?: number | null };
 // Member type that can have optional capacity/cost percentages (for optimizer compatibility)
-type OptimizableMember = (Member | ScenarioMemberData) & { capacity_percentage?: number; cost_percentage?: number };
+type OptimizableMember = (Member | ScenarioMemberData) & { category: MemberCategory; capacity_percentage?: number; cost_percentage?: number; chargeable_days?: number | null; ft_percentage?: number | null };
 import { generateVariants } from '@/lib/optimizer/variants';
 import { solveILP } from '@/lib/optimizer/solver';
 import { useDebouncedValue } from './useDebouncedValue';
@@ -60,22 +60,52 @@ export function useOptimizer(
       middle_up: debouncedSettings.middle_up_rate,
       middle: debouncedSettings.middle_rate,
       junior: debouncedSettings.junior_rate,
+      stage: debouncedSettings.stage_rate,
     };
 
-    // Calculate yearly capacity per seniority level (capacity_percentage scales capacity contribution)
+    // Calculate yearly capacity per seniority level using component-based formula
+    const effectiveDaysPerMember = computeEffectiveDays(
+      debouncedSettings.yearly_workable_days,
+      debouncedSettings.festivita_nazionali,
+      debouncedSettings.ferie,
+      debouncedSettings.malattia,
+      debouncedSettings.formazione
+    );
+    // Capacity depends on category:
+    // - dipendente: effective days (with deductions) * capacity%
+    // - freelance: yearly_workable_days (no deductions) * capacity%
+    // - segnalatore: 0 (no capacity)
+    const calcCapacity = (m: OptimizableMember) => {
+      if (m.category === 'segnalatore') return 0;
+      // Freelance with manual chargeable_days: use directly (still scaled by capacity%)
+      if (m.category === 'freelance' && m.chargeable_days != null) {
+        return m.chargeable_days * ((m.capacity_percentage ?? 100) / 100);
+      }
+      const baseDays = m.category === 'freelance'
+        ? debouncedSettings.yearly_workable_days
+        : effectiveDaysPerMember * ((m.ft_percentage ?? 100) / 100);
+      return baseDays * ((m.capacity_percentage ?? 100) / 100);
+    };
+
+    // Filter out segnalatori for capacity (they have null seniority)
+    const capacityMembers = debouncedMembers.filter((m) => m.category !== 'segnalatore');
+
     const capacity = {
-      senior: debouncedMembers
+      senior: capacityMembers
         .filter((m) => m.seniority === 'senior')
-        .reduce((sum, m) => sum + m.days_per_month * ((m.capacity_percentage ?? 100) / 100) * 12, 0),
-      middle_up: debouncedMembers
+        .reduce((sum, m) => sum + calcCapacity(m), 0),
+      middle_up: capacityMembers
         .filter((m) => m.seniority === 'middle_up')
-        .reduce((sum, m) => sum + m.days_per_month * ((m.capacity_percentage ?? 100) / 100) * 12, 0),
-      middle: debouncedMembers
+        .reduce((sum, m) => sum + calcCapacity(m), 0),
+      middle: capacityMembers
         .filter((m) => m.seniority === 'middle')
-        .reduce((sum, m) => sum + m.days_per_month * ((m.capacity_percentage ?? 100) / 100) * 12, 0),
-      junior: debouncedMembers
+        .reduce((sum, m) => sum + calcCapacity(m), 0),
+      junior: capacityMembers
         .filter((m) => m.seniority === 'junior')
-        .reduce((sum, m) => sum + m.days_per_month * ((m.capacity_percentage ?? 100) / 100) * 12, 0),
+        .reduce((sum, m) => sum + calcCapacity(m), 0),
+      stage: capacityMembers
+        .filter((m) => m.seniority === 'stage')
+        .reduce((sum, m) => sum + calcCapacity(m), 0),
     };
 
     // Generate all variants with substitution options
@@ -95,7 +125,8 @@ export function useOptimizer(
       capacity.senior,
       capacity.middle_up,
       capacity.middle,
-      capacity.junior
+      capacity.junior,
+      capacity.stage
     );
 
     // Calculate results
@@ -106,6 +137,7 @@ export function useOptimizer(
     let usedMiddleUpDays = 0;
     let usedMiddleDays = 0;
     let usedJuniorDays = 0;
+    let usedStageDays = 0;
 
     const demandCapped: Record<string, boolean> = {};
     debouncedServices.forEach((s) => {
@@ -132,6 +164,7 @@ export function useOptimizer(
         usedMiddleUpDays += count * v.middleUpDays;
         usedMiddleDays += count * v.middleDays;
         usedJuniorDays += count * v.juniorDays;
+        usedStageDays += count * v.stageDays;
 
         projectBreakdown.push({
           name: v.variantName,
@@ -162,6 +195,7 @@ export function useOptimizer(
       middle_up: capacity.middle_up > 0 ? (usedMiddleUpDays / capacity.middle_up) * 100 : 0,
       middle: capacity.middle > 0 ? (usedMiddleDays / capacity.middle) * 100 : 0,
       junior: capacity.junior > 0 ? (usedJuniorDays / capacity.junior) * 100 : 0,
+      stage: capacity.stage > 0 ? (usedStageDays / capacity.stage) * 100 : 0,
     };
 
     // Determine bottleneck
@@ -184,6 +218,7 @@ export function useOptimizer(
         { name: 'Middle Up', slack: capacity.middle_up - usedMiddleUpDays, cap: capacity.middle_up },
         { name: 'Middle', slack: capacity.middle - usedMiddleDays, cap: capacity.middle },
         { name: 'Junior', slack: capacity.junior - usedJuniorDays, cap: capacity.junior },
+        { name: 'Stage', slack: capacity.stage - usedStageDays, cap: capacity.stage },
       ].filter((s) => s.cap > 0);
 
       bottleneck = slacks.length > 0
@@ -208,6 +243,7 @@ export function useOptimizer(
         middle_up: usedMiddleUpDays,
         middle: usedMiddleDays,
         junior: usedJuniorDays,
+        stage: usedStageDays,
       },
       capacity,
       utilization,

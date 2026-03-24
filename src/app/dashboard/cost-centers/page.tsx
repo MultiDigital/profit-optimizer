@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useMembers, useCostCenters } from '@/hooks';
+import { useMembers, useCostCenters, useSettings } from '@/hooks';
 import { AllocationMatrix, CostCenterDialog } from '@/components/cost-centers';
-import { CostCenter } from '@/lib/optimizer/types';
+import { CostCenter, DEFAULT_SETTINGS } from '@/lib/optimizer/types';
 import {
   Button,
   Card,
@@ -24,6 +24,7 @@ import {
 
 export default function CostCentersPage() {
   const { members, loading: membersLoading } = useMembers();
+  const { settings } = useSettings();
   const {
     costCenters,
     allocations,
@@ -109,6 +110,13 @@ export default function CostCentersPage() {
                   members={members}
                   costCenters={costCenters}
                   allocations={allocations}
+                  capacitySettings={{
+                    yearly_workable_days: settings?.yearly_workable_days ?? DEFAULT_SETTINGS.yearly_workable_days,
+                    festivita_nazionali: settings?.festivita_nazionali ?? DEFAULT_SETTINGS.festivita_nazionali,
+                    ferie: settings?.ferie ?? DEFAULT_SETTINGS.ferie,
+                    malattia: settings?.malattia ?? DEFAULT_SETTINGS.malattia,
+                    formazione: settings?.formazione ?? DEFAULT_SETTINGS.formazione,
+                  }}
                   onSetAllocation={setAllocation}
                 />
               </>

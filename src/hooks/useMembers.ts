@@ -24,7 +24,7 @@ export function useMembers() {
         .from('members')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: true });
+        .order('last_name', { ascending: true });
 
       if (error) throw error;
       setMembers(data || []);
@@ -53,7 +53,7 @@ export function useMembers() {
       if (error) throw error;
       setMembers((prev) => [...prev, data]);
       toast.success('Team member added', {
-        description: `${input.name} has been added to the team`,
+        description: `${input.first_name} ${input.last_name} has been added to the team`,
       });
       return data;
     } catch (err) {
@@ -100,7 +100,7 @@ export function useMembers() {
       if (error) throw error;
       setMembers((prev) => prev.filter((m) => m.id !== id));
       toast.success('Team member removed', {
-        description: member ? `${member.name} has been removed` : undefined,
+        description: member ? `${member.first_name} ${member.last_name} has been removed` : undefined,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete member';

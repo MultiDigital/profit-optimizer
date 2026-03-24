@@ -55,6 +55,13 @@ export const createColumns = ({ onEdit, onDelete }: ColumnActions): ColumnDef<Sc
     ),
   },
   {
+    accessorKey: 'stage_days',
+    header: () => <div className="text-right">Stg</div>,
+    cell: ({ row }) => (
+      <div className="text-right">{row.getValue('stage_days')}</div>
+    ),
+  },
+  {
     accessorKey: 'price',
     header: () => <div className="text-right">Price</div>,
     cell: ({ row }) => (

@@ -3,14 +3,15 @@ import { Service, ServiceVariant, ScenarioServiceData } from './types';
 // Service type for optimization - can be catalog service or scenario service
 type OptimizableService = (Service | ScenarioServiceData) & { max_year?: number | null };
 
-const LEVEL_NAMES = ['Senior', 'Middle Up', 'Middle', 'Junior'];
-const RATE_KEYS = ['senior', 'middle_up', 'middle', 'junior'] as const;
+const LEVEL_NAMES = ['Senior', 'Middle Up', 'Middle', 'Junior', 'Stage'];
+const RATE_KEYS = ['senior', 'middle_up', 'middle', 'junior', 'stage'] as const;
 
 interface Rates {
   senior: number;
   middle_up: number;
   middle: number;
   junior: number;
+  stage: number;
 }
 
 /**
@@ -21,7 +22,8 @@ function getEfficiency(levelsDiff: number): number {
   if (levelsDiff <= 0) return 0;
   if (levelsDiff === 1) return 0.05;
   if (levelsDiff === 2) return 0.1;
-  return 0.15; // 3 levels
+  if (levelsDiff === 3) return 0.15;
+  return 0.20; // 4 levels (e.g., Senior doing Stage work)
 }
 
 /**
@@ -37,12 +39,13 @@ export function generateVariants(service: OptimizableService, rates: Rates): Ser
     middle_up_days: middleUpDays,
     middle_days: middleDays,
     junior_days: juniorDays,
+    stage_days: stageDays,
     price,
     max_year: maxYear = null,
   } = service;
 
-  const days = [seniorDays || 0, middleUpDays || 0, middleDays || 0, juniorDays || 0];
-  const rateValues = [rates.senior, rates.middle_up, rates.middle, rates.junior];
+  const days = [seniorDays || 0, middleUpDays || 0, middleDays || 0, juniorDays || 0, stageDays];
+  const rateValues = [rates.senior, rates.middle_up, rates.middle, rates.junior, rates.stage];
 
   // Original variant (no substitution)
   const origCost = days.reduce((sum, d, i) => sum + d * rateValues[i], 0);
@@ -58,6 +61,7 @@ export function generateVariants(service: OptimizableService, rates: Rates): Ser
     middleUpDays: days[1],
     middleDays: days[2],
     juniorDays: days[3],
+    stageDays: days[4],
     price,
     maxYear,
     cost: origCost,
@@ -68,15 +72,15 @@ export function generateVariants(service: OptimizableService, rates: Rates): Ser
   });
 
   // Generate "all-in" variants: each level does ALL work at and below its level
-  // E.g., "Senior does all" = Senior does Sr + MU + Mid + Jr work
-  for (let doerLevel = 0; doerLevel < 3; doerLevel++) {
-    // Senior, Middle Up, Middle can substitute
-    const newDays = [0, 0, 0, 0];
+  // E.g., "Senior does all" = Senior does Sr + MU + Mid + Jr + Stage work
+  // doerLevel 0..3 = Senior, MU, Middle, Junior can substitute; workLevel 0..4 includes Stage
+  for (let doerLevel = 0; doerLevel < 4; doerLevel++) {
+    const newDays = [0, 0, 0, 0, 0];
     let hasSubstitution = false;
     const substitutedLevels: string[] = [];
 
     // For each level, either keep it or substitute it
-    for (let workLevel = 0; workLevel <= 3; workLevel++) {
+    for (let workLevel = 0; workLevel <= 4; workLevel++) {
       if (days[workLevel] <= 0) continue;
 
       if (workLevel <= doerLevel) {
@@ -114,6 +118,7 @@ export function generateVariants(service: OptimizableService, rates: Rates): Ser
       middleUpDays: newDays[1],
       middleDays: newDays[2],
       juniorDays: newDays[3],
+      stageDays: newDays[4],
       price,
       maxYear,
       cost,

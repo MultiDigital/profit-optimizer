@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui';
-import { OptimizationResult, ScenarioMemberData, SENIORITY_LEVELS, SENIORITY_LABELS } from '@/lib/optimizer/types';
+import { OptimizationResult, ScenarioMemberData, SENIORITY_LEVELS, SENIORITY_LABELS, MEMBER_CATEGORIES, MEMBER_CATEGORY_LABELS } from '@/lib/optimizer/types';
 import { formatCurrency, formatPercent } from '@/lib/utils';
 
 interface ComparisonTableProps {
@@ -114,6 +114,17 @@ function buildRows(a: OptimizationResult, b: OptimizationResult, membersA: Scena
     ])
   );
 
+  // Pre-compute member counts per category
+  const categoryCounts = new Map(
+    MEMBER_CATEGORIES.map((cat) => [
+      cat,
+      {
+        a: membersA.filter((m) => m.category === cat).length,
+        b: membersB.filter((m) => m.category === cat).length,
+      },
+    ])
+  );
+
   // Financial
   addSection('Financial');
   addCurrency('Yearly Revenue', a.totalRevenue, b.totalRevenue);
@@ -135,12 +146,17 @@ function buildRows(a: OptimizationResult, b: OptimizationResult, membersA: Scena
 
   // Workforce
   addSection('Workforce');
+  for (const cat of MEMBER_CATEGORIES) {
+    const { a: countA, b: countB } = categoryCounts.get(cat)!;
+    if (countA === 0 && countB === 0) continue;
+    addNeutralNumber(MEMBER_CATEGORY_LABELS[cat], countA, countB);
+  }
   for (const level of SENIORITY_LEVELS) {
     const { a: countA, b: countB } = levelCounts.get(level)!;
     if (countA === 0 && countB === 0) continue;
     addNeutralNumber(SENIORITY_LABELS[level], countA, countB);
   }
-  addNeutralNumber('Total Employees', membersA.length, membersB.length);
+  addNeutralNumber('Total Members', membersA.length, membersB.length);
 
   return rows;
 }

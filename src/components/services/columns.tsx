@@ -63,6 +63,13 @@ export const createColumns = ({ onEdit, onDelete, settings }: ColumnActions): Co
     ),
   },
   {
+    accessorKey: 'stage_days',
+    header: () => <div className="text-right">Stg</div>,
+    cell: ({ row }) => (
+      <div className="text-right text-emerald-500">{row.getValue('stage_days')}</div>
+    ),
+  },
+  {
     id: 'margin',
     header: () => <div className="text-right">Margin</div>,
     cell: ({ row }) => {
@@ -75,7 +82,8 @@ export const createColumns = ({ onEdit, onDelete, settings }: ColumnActions): Co
         service.senior_days * settings.senior_rate +
         service.middle_up_days * settings.middle_up_rate +
         service.middle_days * settings.middle_rate +
-        service.junior_days * settings.junior_rate;
+        service.junior_days * settings.junior_rate +
+        service.stage_days * settings.stage_rate;
 
       const margin = service.price - cost;
       const marginPct = service.price > 0 ? (margin / service.price) * 100 : 0;

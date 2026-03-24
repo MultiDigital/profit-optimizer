@@ -18,7 +18,8 @@ export function solveILP(
   seniorCap: number,
   middleUpCap: number,
   middleCap: number,
-  juniorCap: number
+  juniorCap: number,
+  stageCap: number
 ): SolverResult {
   // Sort by margin efficiency for better pruning
   const sortedVariants = [...variants].sort((a, b) => {
@@ -43,6 +44,7 @@ export function solveILP(
     if (v.middleUpDays > 0) max = Math.min(max, Math.floor(middleUpCap / v.middleUpDays));
     if (v.middleDays > 0) max = Math.min(max, Math.floor(middleCap / v.middleDays));
     if (v.juniorDays > 0) max = Math.min(max, Math.floor(juniorCap / v.juniorDays));
+    if (v.stageDays > 0) max = Math.min(max, Math.floor(stageCap / v.stageDays));
     if (v.maxYear !== null) max = Math.min(max, v.maxYear);
     return Math.max(0, max);
   });
@@ -62,6 +64,7 @@ export function solveILP(
     middleUpLeft: number,
     middleLeft: number,
     juniorLeft: number,
+    stageLeft: number,
     currentAlloc: Allocation,
     currentMargin: number
   ): void {
@@ -81,6 +84,7 @@ export function solveILP(
       if (v.middleUpDays > 0) canDo = Math.min(canDo, middleUpLeft / v.middleUpDays);
       if (v.middleDays > 0) canDo = Math.min(canDo, middleLeft / v.middleDays);
       if (v.juniorDays > 0) canDo = Math.min(canDo, juniorLeft / v.juniorDays);
+      if (v.stageDays > 0) canDo = Math.min(canDo, stageLeft / v.stageDays);
       if (v.maxYear !== null) {
         const baseAlloc = getBaseAllocation(currentAlloc, v.baseId);
         canDo = Math.min(canDo, v.maxYear - baseAlloc);
@@ -111,7 +115,8 @@ export function solveILP(
       v.seniorDays > 0 ? Math.floor(seniorLeft / v.seniorDays) : Infinity,
       v.middleUpDays > 0 ? Math.floor(middleUpLeft / v.middleUpDays) : Infinity,
       v.middleDays > 0 ? Math.floor(middleLeft / v.middleDays) : Infinity,
-      v.juniorDays > 0 ? Math.floor(juniorLeft / v.juniorDays) : Infinity
+      v.juniorDays > 0 ? Math.floor(juniorLeft / v.juniorDays) : Infinity,
+      v.stageDays > 0 ? Math.floor(stageLeft / v.stageDays) : Infinity
     );
 
     // Only try positive quantities if margin > 0, otherwise just try 0
@@ -125,6 +130,7 @@ export function solveILP(
         middleUpLeft - qty * v.middleUpDays,
         middleLeft - qty * v.middleDays,
         juniorLeft - qty * v.juniorDays,
+        stageLeft - qty * v.stageDays,
         currentAlloc,
         currentMargin + qty * v.margin
       );
@@ -136,7 +142,7 @@ export function solveILP(
     initAlloc[v.variantId] = 0;
   });
 
-  search(0, seniorCap, middleUpCap, middleCap, juniorCap, initAlloc, 0);
+  search(0, seniorCap, middleUpCap, middleCap, juniorCap, stageCap, initAlloc, 0);
 
   return { solution: bestSolution, margin: bestMargin, hitIterationLimit: hitLimit };
 }

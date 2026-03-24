@@ -128,10 +128,13 @@ export function useScenarios() {
       const capCost = allocationPercentage ?? 100;
       const input: ScenarioMemberDataInput = {
         source_member_id: member.id,
-        name: member.name,
+        first_name: member.first_name,
+        last_name: member.last_name,
+        category: member.category,
         seniority: member.seniority,
-        days_per_month: member.days_per_month,
         salary: member.salary,
+        chargeable_days: member.chargeable_days ?? null,
+        ft_percentage: member.ft_percentage ?? 100,
         capacity_percentage: capCost,
         cost_percentage: capCost,
       };
@@ -165,6 +168,7 @@ export function useScenarios() {
         middle_up_days: service.middle_up_days,
         middle_days: service.middle_days,
         junior_days: service.junior_days,
+        stage_days: service.stage_days,
         price: service.price,
         max_year: null, // default to unlimited at scenario level
       };
@@ -272,9 +276,10 @@ export function useScenarios() {
   const resyncMemberFromCatalog = useCallback(async (scenarioMemberId: string, catalogMember: Member) => {
     return updateScenarioMember(scenarioMemberId, {
       source_member_id: catalogMember.id,
-      name: catalogMember.name,
+      first_name: catalogMember.first_name,
+      last_name: catalogMember.last_name,
+      category: catalogMember.category,
       seniority: catalogMember.seniority,
-      days_per_month: catalogMember.days_per_month,
       salary: catalogMember.salary,
     });
   }, [updateScenarioMember]);
@@ -299,6 +304,7 @@ export function useScenarios() {
       middle_up_days: catalogService.middle_up_days,
       middle_days: catalogService.middle_days,
       junior_days: catalogService.junior_days,
+      stage_days: catalogService.stage_days,
       price: catalogService.price,
       max_year: maxYear,
     });
@@ -323,7 +329,7 @@ export function useScenarios() {
         .from('scenario_members_data')
         .select('*')
         .eq('scenario_id', scenarioId)
-        .order('created_at', { ascending: true });
+        .order('last_name', { ascending: true });
 
       if (membersError) throw membersError;
 
@@ -376,10 +382,13 @@ export function useScenarios() {
         const memberRows = source.members.map((m) => ({
           scenario_id: newScenario.id,
           source_member_id: m.source_member_id,
-          name: m.name,
+          first_name: m.first_name,
+          last_name: m.last_name,
+          category: m.category,
           seniority: m.seniority,
-          days_per_month: m.days_per_month,
           salary: m.salary,
+          chargeable_days: m.chargeable_days ?? null,
+          ft_percentage: m.ft_percentage ?? 100,
           capacity_percentage: m.capacity_percentage,
           cost_percentage: m.cost_percentage,
         }));
@@ -401,6 +410,7 @@ export function useScenarios() {
           middle_up_days: s.middle_up_days,
           middle_days: s.middle_days,
           junior_days: s.junior_days,
+          stage_days: s.stage_days,
           price: s.price,
           max_year: s.max_year,
         }));
