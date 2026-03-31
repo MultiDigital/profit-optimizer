@@ -208,6 +208,8 @@ export const DEFAULT_MEMBER: MemberInput = {
   salary: 50000,
   chargeable_days: null,
   ft_percentage: 100,
+  contract_start_date: null,
+  contract_end_date: null,
 };
 
 export const DEFAULT_SERVICE: ServiceInput = {
