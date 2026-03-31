@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Settings, LogOut, BarChart3, Users, Package, Building2, GitCompareArrows, TrendingUp } from 'lucide-react';
+import { Home, Settings, LogOut, BarChart3, Users, Package, Building2, GitCompareArrows, TrendingUp, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui';
 import {
   Sidebar,
@@ -23,6 +23,7 @@ const navItems = [
   { href: '/dashboard/services', icon: Package, label: 'Services' },
   { href: '/dashboard/cost-centers', icon: Building2, label: 'Cost Centers' },
   { href: '/dashboard/workforce-analytics', icon: TrendingUp, label: 'Workforce Analytics' },
+  { href: '/dashboard/hr-planning', icon: CalendarClock, label: 'HR Planning' },
   { href: '/dashboard/compare', icon: GitCompareArrows, label: 'Compare' },
   { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
 ];
