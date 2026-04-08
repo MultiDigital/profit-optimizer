@@ -21,6 +21,7 @@ const FIELD_LABELS: Record<MemberEventField, string> = {
   category: 'Categoria',
   capacity_percentage: 'Capacity %',
   chargeable_days: 'Giorni fatturabili',
+  cost_center_allocations: 'Alloc. CdC',
 };
 
 function formatEventValue(field: MemberEventField, value: string): string {
@@ -36,6 +37,8 @@ function formatEventValue(field: MemberEventField, value: string): string {
       return value.charAt(0).toUpperCase() + value.slice(1).replace('_', ' ');
     case 'category':
       return value.charAt(0).toUpperCase() + value.slice(1);
+    case 'cost_center_allocations':
+      return 'Cambio allocazione';
   }
 }
 
