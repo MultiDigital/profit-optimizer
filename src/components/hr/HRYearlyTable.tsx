@@ -20,6 +20,7 @@ interface HRYearlyTableProps {
   yearlyView: YearlyView | null;
   loading?: boolean;
   onMemberClick?: (memberId: string) => void;
+  costCenterId?: string | null;
 }
 
 const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
@@ -35,7 +36,7 @@ function formatCell(value: number, metric: Metric): string {
   }
 }
 
-export function HRYearlyTable({ yearlyView, loading, onMemberClick }: HRYearlyTableProps) {
+export function HRYearlyTable({ yearlyView, loading, onMemberClick, costCenterId }: HRYearlyTableProps) {
   const [metric, setMetric] = useState<Metric>('cost');
   const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set());
 
@@ -97,6 +98,13 @@ export function HRYearlyTable({ yearlyView, loading, onMemberClick }: HRYearlyTa
 
   const getMonthTotal = (monthIndex: number): number => {
     const snapshot = monthlySnapshots[monthIndex];
+    if (costCenterId) {
+      switch (metric) {
+        case 'cost': return snapshot.personnelCostByCostCenter[costCenterId] ?? 0;
+        case 'capacity': return snapshot.capacityByCostCenter[costCenterId] ?? 0;
+        case 'fte': return snapshot.fteByCostCenter[costCenterId] ?? 0;
+      }
+    }
     switch (metric) {
       case 'cost': return snapshot.totalCompanyCost;
       case 'capacity': return snapshot.productiveCapacity;
