@@ -11,12 +11,14 @@ import {
   MemberEvent,
   ScenarioMemberEvent,
   ScenarioMemberEventInput,
+  EventCostCenterAllocation,
 } from '@/lib/optimizer/types';
 
 export interface HRScenarioWithData {
   scenario: HRScenario;
   members: HRScenarioMember[];
   events: ScenarioMemberEvent[];
+  eventAllocations: EventCostCenterAllocation[];
 }
 
 export function useHRScenarios() {
@@ -121,6 +123,51 @@ export function useHRScenarios() {
 
             if (eventError) throw eventError;
           }
+
+          // Copy CDC event allocations
+          if (eventRows.length > 0) {
+            const { data: insertedEvents } = await supabase
+              .from('scenario_member_events')
+              .select('*')
+              .eq('user_id', user.id)
+              .in('scenario_member_id', insertedMembers.map((m: HRScenarioMember) => m.id))
+              .order('start_date', { ascending: true });
+
+            if (insertedEvents) {
+              const cdcCatalogEvents = catalogEvents.filter((e) => e.field === 'cost_center_allocations');
+              if (cdcCatalogEvents.length > 0) {
+                const catalogEventIds = cdcCatalogEvents.map((e) => e.id);
+                const { data: srcAllocs } = await supabase
+                  .from('event_cost_center_allocations')
+                  .select('*')
+                  .in('member_event_id', catalogEventIds);
+
+                if (srcAllocs && srcAllocs.length > 0) {
+                  for (const cdcEvent of cdcCatalogEvents) {
+                    const newMemberId = memberIdMap.get(cdcEvent.member_id);
+                    if (!newMemberId) continue;
+                    const matchingNewEvent = insertedEvents.find(
+                      (e: ScenarioMemberEvent) =>
+                        e.scenario_member_id === newMemberId &&
+                        e.field === 'cost_center_allocations' &&
+                        e.start_date === cdcEvent.start_date
+                    );
+                    if (!matchingNewEvent) continue;
+                    const eventAllocs = srcAllocs.filter((a: EventCostCenterAllocation) => a.member_event_id === cdcEvent.id);
+                    if (eventAllocs.length > 0) {
+                      await supabase.from('event_cost_center_allocations').insert(
+                        eventAllocs.map((a: EventCostCenterAllocation) => ({
+                          scenario_member_event_id: matchingNewEvent.id,
+                          cost_center_id: a.cost_center_id,
+                          percentage: a.percentage,
+                        }))
+                      );
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
 
@@ -187,7 +234,23 @@ export function useHRScenarios() {
         events = eventData || [];
       }
 
-      return { scenario, members: members || [], events };
+      // Fetch event CDC allocations
+      const cdcEventIds = events
+        .filter((e: ScenarioMemberEvent) => e.field === 'cost_center_allocations')
+        .map((e: ScenarioMemberEvent) => e.id);
+
+      let eventAllocations: EventCostCenterAllocation[] = [];
+      if (cdcEventIds.length > 0) {
+        const { data: allocData, error: allocError } = await supabase
+          .from('event_cost_center_allocations')
+          .select('*')
+          .in('scenario_member_event_id', cdcEventIds);
+
+        if (allocError) throw allocError;
+        eventAllocations = allocData || [];
+      }
+
+      return { scenario, members: members || [], events, eventAllocations };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch HR scenario';
       setError(message);
@@ -259,6 +322,39 @@ export function useHRScenarios() {
 
           if (eventRows.length > 0) {
             await supabase.from('scenario_member_events').insert(eventRows);
+          }
+
+          // Copy CDC event allocations from source scenario
+          if (source.events.length > 0 && source.eventAllocations.length > 0) {
+            const { data: insertedEvents } = await supabase
+              .from('scenario_member_events')
+              .select('*')
+              .in('scenario_member_id', insertedMembers.map((m: HRScenarioMember) => m.id))
+              .order('start_date', { ascending: true });
+
+            if (insertedEvents) {
+              for (const srcEvent of source.events.filter((e) => e.field === 'cost_center_allocations')) {
+                const newMemberId = memberIdMap.get(srcEvent.scenario_member_id);
+                if (!newMemberId) continue;
+                const matchingNewEvent = insertedEvents.find(
+                  (e: ScenarioMemberEvent) =>
+                    e.scenario_member_id === newMemberId &&
+                    e.field === 'cost_center_allocations' &&
+                    e.start_date === srcEvent.start_date
+                );
+                if (!matchingNewEvent) continue;
+                const eventAllocs = source.eventAllocations.filter((a) => a.scenario_member_event_id === srcEvent.id);
+                if (eventAllocs.length > 0) {
+                  await supabase.from('event_cost_center_allocations').insert(
+                    eventAllocs.map((a) => ({
+                      scenario_member_event_id: matchingNewEvent.id,
+                      cost_center_id: a.cost_center_id,
+                      percentage: a.percentage,
+                    }))
+                  );
+                }
+              }
+            }
           }
         }
       }
@@ -352,6 +448,74 @@ export function useHRScenarios() {
     }
   }, []);
 
+  const addScenarioEventWithAllocations = useCallback(async (
+    input: ScenarioMemberEventInput,
+    cdcAllocations: { cost_center_id: string; percentage: number }[]
+  ) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('scenario_member_events')
+        .insert({ user_id: user.id, ...input, value: '' })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (cdcAllocations.length > 0) {
+        const allocRows = cdcAllocations
+          .filter((a) => a.percentage > 0)
+          .map((a) => ({
+            scenario_member_event_id: data.id,
+            cost_center_id: a.cost_center_id,
+            percentage: a.percentage,
+          }));
+
+        if (allocRows.length > 0) {
+          await supabase.from('event_cost_center_allocations').insert(allocRows);
+        }
+      }
+
+      toast.success('Planned change added to scenario');
+      return data as ScenarioMemberEvent;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add event';
+      setError(message);
+      toast.error('Failed to add planned change', { description: message });
+      throw err;
+    }
+  }, []);
+
+  const updateScenarioEventAllocations = useCallback(async (
+    eventId: string,
+    cdcAllocations: { cost_center_id: string; percentage: number }[]
+  ) => {
+    try {
+      await supabase
+        .from('event_cost_center_allocations')
+        .delete()
+        .eq('scenario_member_event_id', eventId);
+
+      const allocRows = cdcAllocations
+        .filter((a) => a.percentage > 0)
+        .map((a) => ({
+          scenario_member_event_id: eventId,
+          cost_center_id: a.cost_center_id,
+          percentage: a.percentage,
+        }));
+
+      if (allocRows.length > 0) {
+        await supabase.from('event_cost_center_allocations').insert(allocRows);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update allocations';
+      toast.error('Failed to update allocations', { description: message });
+      throw err;
+    }
+  }, []);
+
   const updateScenarioEvent = useCallback(async (id: string, input: Partial<ScenarioMemberEventInput>) => {
     try {
       const { data, error } = await supabase
@@ -404,6 +568,8 @@ export function useHRScenarios() {
     addHypotheticalMember,
     removeScenarioMember,
     addScenarioEvent,
+    addScenarioEventWithAllocations,
+    updateScenarioEventAllocations,
     updateScenarioEvent,
     deleteScenarioEvent,
     refetch: fetchHRScenarios,
