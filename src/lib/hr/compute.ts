@@ -9,12 +9,14 @@ import {
   YearlyView,
   MemberEventField,
   HRScenarioMember,
+  EventCostCenterAllocation,
 } from '@/lib/optimizer/types';
 import {
   resolveFieldForMonth,
   isMemberActiveInMonth,
   monthProRataFraction,
   parseEventValue,
+  resolveCostCenterAllocationsForMonth,
 } from './resolve-events';
 
 type AnyMember = (Member | HRScenarioMember) & {
@@ -209,6 +211,7 @@ export function computeMonthlySnapshot(
   events: AnyEvent[],
   settings: Settings | null,
   allocations: CostCenterAllocation[],
+  eventAllocations: EventCostCenterAllocation[],
   month: string
 ): MonthlySnapshot {
   const memberDetails: MemberMonthDetail[] = [];
@@ -222,6 +225,10 @@ export function computeMonthlySnapshot(
   let totalCapacity = 0;
   let totalFte = 0;
   let headcount = 0;
+
+  const capacityByCostCenter: Record<string, number> = {};
+  const fteByCostCenter: Record<string, number> = {};
+  const headcountByCostCenter: Record<string, number> = {};
 
   for (const member of members) {
     const memberEvents = getEventsForMember(events, member);
@@ -249,13 +256,26 @@ export function computeMonthlySnapshot(
       }
     }
 
-    // By cost center
+    // By cost center — resolve event-based allocations first, fallback to static
     const memberId = detail.memberId;
-    const memberAllocations = allocations.filter((a) => a.member_id === memberId);
-    if (memberAllocations.length > 0) {
-      for (const alloc of memberAllocations) {
-        const allocatedCost = detail.monthlyCost * (alloc.percentage / 100);
-        personnelCostByCostCenter[alloc.cost_center_id] = (personnelCostByCostCenter[alloc.cost_center_id] || 0) + allocatedCost;
+    const memberEventAllocations = resolveCostCenterAllocationsForMonth(
+      memberEvents,
+      eventAllocations,
+      month
+    );
+    const resolvedAllocations: { cost_center_id: string; percentage: number }[] =
+      memberEventAllocations ??
+      allocations
+        .filter((a) => a.member_id === memberId)
+        .map((a) => ({ cost_center_id: a.cost_center_id, percentage: a.percentage }));
+
+    if (resolvedAllocations.length > 0) {
+      for (const alloc of resolvedAllocations) {
+        const pct = alloc.percentage / 100;
+        personnelCostByCostCenter[alloc.cost_center_id] = (personnelCostByCostCenter[alloc.cost_center_id] || 0) + detail.monthlyCost * pct;
+        capacityByCostCenter[alloc.cost_center_id] = (capacityByCostCenter[alloc.cost_center_id] || 0) + detail.monthlyCapacity * pct;
+        fteByCostCenter[alloc.cost_center_id] = (fteByCostCenter[alloc.cost_center_id] || 0) + detail.fte * pct;
+        headcountByCostCenter[alloc.cost_center_id] = (headcountByCostCenter[alloc.cost_center_id] || 0) + (detail.fte > 0 || detail.effectiveCategory === 'segnalatore' ? 1 : 0) * pct;
       }
     }
   }
@@ -285,6 +305,9 @@ export function computeMonthlySnapshot(
     headcount,
     avgHourlyCostBySeniority,
     costCenterBreakdown,
+    capacityByCostCenter,
+    fteByCostCenter,
+    headcountByCostCenter,
     memberDetails,
   };
 }
@@ -294,13 +317,14 @@ export function computeYearlyView(
   events: AnyEvent[],
   settings: Settings | null,
   allocations: CostCenterAllocation[],
+  eventAllocations: EventCostCenterAllocation[],
   year: number
 ): YearlyView {
   const monthlySnapshots: MonthlySnapshot[] = [];
 
   for (let m = 1; m <= 12; m++) {
     const month = `${year}-${String(m).padStart(2, '0')}`;
-    monthlySnapshots.push(computeMonthlySnapshot(members, events, settings, allocations, month));
+    monthlySnapshots.push(computeMonthlySnapshot(members, events, settings, allocations, eventAllocations, month));
   }
 
   // Aggregate annual totals
@@ -314,6 +338,9 @@ export function computeYearlyView(
     headcount: 0,
     avgHourlyCostBySeniority: { senior: 0, middle_up: 0, middle: 0, junior: 0, stage: 0 } as Record<SeniorityLevel, number>,
     costCenterBreakdown: {} as Record<string, number>,
+    capacityByCostCenter: {} as Record<string, number>,
+    fteByCostCenter: {} as Record<string, number>,
+    headcountByCostCenter: {} as Record<string, number>,
   };
 
   const hourlyCostNumerator: Record<SeniorityLevel, number> = { senior: 0, middle_up: 0, middle: 0, junior: 0, stage: 0 };
@@ -336,11 +363,29 @@ export function computeYearlyView(
     for (const [ccId, cost] of Object.entries(snapshot.personnelCostByCostCenter)) {
       annualTotals.personnelCostByCostCenter[ccId] = (annualTotals.personnelCostByCostCenter[ccId] || 0) + cost;
     }
+
+    for (const [ccId, cap] of Object.entries(snapshot.capacityByCostCenter)) {
+      annualTotals.capacityByCostCenter[ccId] = (annualTotals.capacityByCostCenter[ccId] || 0) + cap;
+    }
+    for (const [ccId, fte] of Object.entries(snapshot.fteByCostCenter)) {
+      annualTotals.fteByCostCenter[ccId] = (annualTotals.fteByCostCenter[ccId] || 0) + fte;
+    }
+    for (const [ccId, hc] of Object.entries(snapshot.headcountByCostCenter)) {
+      annualTotals.headcountByCostCenter[ccId] = (annualTotals.headcountByCostCenter[ccId] || 0) + hc;
+    }
   }
 
   // Average FTE and headcount (average across months)
   annualTotals.fte = monthlySnapshots.reduce((sum, s) => sum + s.fte, 0) / 12;
   annualTotals.headcount = Math.round(monthlySnapshots.reduce((sum, s) => sum + s.headcount, 0) / 12);
+
+  // Average FTE and headcount by cost center
+  for (const ccId of Object.keys(annualTotals.fteByCostCenter)) {
+    annualTotals.fteByCostCenter[ccId] /= 12;
+  }
+  for (const ccId of Object.keys(annualTotals.headcountByCostCenter)) {
+    annualTotals.headcountByCostCenter[ccId] = Math.round(annualTotals.headcountByCostCenter[ccId] / 12);
+  }
 
   // Annual average hourly cost
   for (const sen of SENIORITY_LEVELS) {
