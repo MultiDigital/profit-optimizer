@@ -10,6 +10,7 @@ interface HRComparisonViewProps {
   compareView: YearlyView;
   baseLabel: string;
   compareLabel: string;
+  costCenterId?: string | null;
 }
 
 interface ComparisonRow {
@@ -45,32 +46,32 @@ function DeltaIndicator({ base, compare, format }: { base: number; compare: numb
   );
 }
 
-export function HRComparisonView({ baseView, compareView, baseLabel, compareLabel }: HRComparisonViewProps) {
+export function HRComparisonView({ baseView, compareView, baseLabel, compareLabel, costCenterId }: HRComparisonViewProps) {
+  const getValues = (view: YearlyView) => {
+    if (costCenterId) {
+      return {
+        cost: view.annualTotals.personnelCostByCostCenter[costCenterId] ?? 0,
+        capacity: view.annualTotals.capacityByCostCenter[costCenterId] ?? 0,
+        fte: view.annualTotals.fteByCostCenter[costCenterId] ?? 0,
+        headcount: view.annualTotals.headcountByCostCenter[costCenterId] ?? 0,
+      };
+    }
+    return {
+      cost: view.annualTotals.totalCompanyCost,
+      capacity: view.annualTotals.productiveCapacity,
+      fte: view.annualTotals.fte,
+      headcount: view.annualTotals.headcount,
+    };
+  };
+
+  const baseVals = getValues(baseView);
+  const compareVals = getValues(compareView);
+
   const rows: ComparisonRow[] = [
-    {
-      label: 'Costo Azienda',
-      baseValue: baseView.annualTotals.totalCompanyCost,
-      compareValue: compareView.annualTotals.totalCompanyCost,
-      format: 'currency',
-    },
-    {
-      label: 'Capacita Produttiva',
-      baseValue: baseView.annualTotals.productiveCapacity,
-      compareValue: compareView.annualTotals.productiveCapacity,
-      format: 'days',
-    },
-    {
-      label: 'FTE',
-      baseValue: baseView.annualTotals.fte,
-      compareValue: compareView.annualTotals.fte,
-      format: 'decimal',
-    },
-    {
-      label: 'Headcount',
-      baseValue: baseView.annualTotals.headcount,
-      compareValue: compareView.annualTotals.headcount,
-      format: 'number',
-    },
+    { label: 'Costo Azienda', baseValue: baseVals.cost, compareValue: compareVals.cost, format: 'currency' },
+    { label: 'Capacita Produttiva', baseValue: baseVals.capacity, compareValue: compareVals.capacity, format: 'days' },
+    { label: 'FTE', baseValue: baseVals.fte, compareValue: compareVals.fte, format: 'decimal' },
+    { label: 'Headcount', baseValue: baseVals.headcount, compareValue: compareVals.headcount, format: 'number' },
   ];
 
   return (
@@ -115,13 +116,19 @@ export function HRComparisonView({ baseView, compareView, baseLabel, compareLabe
             {baseView.monthlySnapshots.map((baseSnap, i) => {
               const compareSnap = compareView.monthlySnapshots[i];
               const monthName = new Date(2026, i, 1).toLocaleDateString('it-IT', { month: 'long' });
+              const baseCost = costCenterId
+                ? (baseSnap.personnelCostByCostCenter[costCenterId] ?? 0)
+                : baseSnap.totalCompanyCost;
+              const compareCost = costCenterId
+                ? (compareSnap.personnelCostByCostCenter[costCenterId] ?? 0)
+                : compareSnap.totalCompanyCost;
               return (
                 <tr key={i} className="border-b">
                   <td className="sticky left-0 bg-background px-3 py-2 font-medium capitalize">{monthName}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(baseSnap.totalCompanyCost)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(compareSnap.totalCompanyCost)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(baseCost)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(compareCost)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">
-                    <DeltaIndicator base={baseSnap.totalCompanyCost} compare={compareSnap.totalCompanyCost} format="currency" />
+                    <DeltaIndicator base={baseCost} compare={compareCost} format="currency" />
                   </td>
                 </tr>
               );
