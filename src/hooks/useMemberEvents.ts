@@ -205,6 +205,7 @@ export function useMemberEvents(memberId?: string) {
 
       if (error) throw error;
       setEvents((prev) => prev.filter((e) => e.id !== id));
+      setEventAllocations((prev) => prev.filter((a) => a.member_event_id !== id));
       toast.success('Planned change removed');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete event';
