@@ -8,6 +8,7 @@ import {
   YearlyView,
   HRScenarioMember,
   ScenarioMemberEvent,
+  EventCostCenterAllocation,
 } from '@/lib/optimizer/types';
 import { computeYearlyView } from '@/lib/hr/compute';
 
@@ -36,16 +37,18 @@ export function useHRPlanning(
   events: HRPlanningEvents,
   settings: Settings | null,
   allocations: CostCenterAllocation[],
+  eventAllocations: EventCostCenterAllocation[],
   year: number
 ) {
   const debouncedMembers = useDebouncedValue(members, 500);
   const debouncedEvents = useDebouncedValue(events, 500);
   const debouncedSettings = useDebouncedValue(settings, 500);
   const debouncedAllocations = useDebouncedValue(allocations, 500);
+  const debouncedEventAllocations = useDebouncedValue(eventAllocations, 500);
   const debouncedYear = useDebouncedValue(year, 500);
 
   const [isCalculating, setIsCalculating] = useState(false);
-  const prevInputsRef = useRef({ members, events, settings, allocations, year });
+  const prevInputsRef = useRef({ members, events, settings, allocations, eventAllocations, year });
 
   // Detect input changes to show calculating state
   useEffect(() => {
@@ -55,12 +58,13 @@ export function useHRPlanning(
       prev.events !== events ||
       prev.settings !== settings ||
       prev.allocations !== allocations ||
+      prev.eventAllocations !== eventAllocations ||
       prev.year !== year
     ) {
       setIsCalculating(true);
-      prevInputsRef.current = { members, events, settings, allocations, year };
+      prevInputsRef.current = { members, events, settings, allocations, eventAllocations, year };
     }
-  }, [members, events, settings, allocations, year]);
+  }, [members, events, settings, allocations, eventAllocations, year]);
 
   const yearlyView: YearlyView | null = useMemo(() => {
     if (debouncedMembers.length === 0) {
@@ -73,12 +77,13 @@ export function useHRPlanning(
       debouncedEvents,
       debouncedSettings,
       debouncedAllocations,
+      debouncedEventAllocations,
       debouncedYear
     );
 
     setIsCalculating(false);
     return result;
-  }, [debouncedMembers, debouncedEvents, debouncedSettings, debouncedAllocations, debouncedYear]);
+  }, [debouncedMembers, debouncedEvents, debouncedSettings, debouncedAllocations, debouncedEventAllocations, debouncedYear]);
 
   return {
     yearlyView,
