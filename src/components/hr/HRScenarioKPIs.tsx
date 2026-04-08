@@ -31,7 +31,7 @@ export function HRScenarioKPIs({ members, settings }: HRScenarioKPIsProps) {
 
   const yearlyView = useMemo(() => {
     if (members.length === 0) return null;
-    return computeYearlyView(members as any, [], settings, [], year);
+    return computeYearlyView(members as any, [], settings, [], [], year);
   }, [members, settings, year]);
 
   return (
