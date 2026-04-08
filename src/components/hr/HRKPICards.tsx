@@ -14,6 +14,7 @@ import {
 interface HRKPICardsProps {
   yearlyView: YearlyView | null;
   loading?: boolean;
+  costCenterId?: string | null;
 }
 
 const SENIORITY_LABELS: Record<SeniorityLevel, string> = {
@@ -24,7 +25,7 @@ const SENIORITY_LABELS: Record<SeniorityLevel, string> = {
   stage: 'Stage',
 };
 
-export function HRKPICards({ yearlyView, loading }: HRKPICardsProps) {
+export function HRKPICards({ yearlyView, loading, costCenterId }: HRKPICardsProps) {
   if (loading || !yearlyView) {
     return (
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
@@ -47,39 +48,53 @@ export function HRKPICards({ yearlyView, loading }: HRKPICardsProps) {
     .map(([sen, cost]) => `${SENIORITY_LABELS[sen as SeniorityLevel]}: ${formatCurrency(cost)}`)
     .join('\n');
 
+  const filtered = costCenterId ? {
+    totalCompanyCost: annualTotals.personnelCostByCostCenter[costCenterId] ?? 0,
+    productiveCapacity: annualTotals.capacityByCostCenter[costCenterId] ?? 0,
+    fte: annualTotals.fteByCostCenter[costCenterId] ?? 0,
+    headcount: annualTotals.headcountByCostCenter[costCenterId] ?? 0,
+  } : {
+    totalCompanyCost: annualTotals.totalCompanyCost,
+    productiveCapacity: annualTotals.productiveCapacity,
+    fte: annualTotals.fte,
+    headcount: annualTotals.headcount,
+  };
+
   const cards = [
     {
       label: 'Costo Azienda',
-      value: formatCurrency(annualTotals.totalCompanyCost),
+      value: formatCurrency(filtered.totalCompanyCost),
       subtitle: 'Totale annuo',
     },
     {
       label: 'Costo Personale',
-      value: formatCurrency(annualTotals.totalCompanyCost),
+      value: formatCurrency(filtered.totalCompanyCost),
       subtitle: 'Per seniority',
-      tooltip: seniorityDetail,
+      tooltip: costCenterId ? undefined : seniorityDetail,
     },
     {
       label: 'Capacita Produttiva',
-      value: `${Math.round(annualTotals.productiveCapacity).toLocaleString('it-IT')} gg`,
+      value: `${Math.round(filtered.productiveCapacity).toLocaleString('it-IT')} gg`,
       subtitle: 'Giorni totali',
     },
     {
       label: 'FTE',
-      value: annualTotals.fte.toFixed(1),
+      value: filtered.fte.toFixed(1),
       subtitle: 'Full-time equivalent',
     },
     {
       label: 'Headcount',
-      value: annualTotals.headcount.toString(),
+      value: Math.round(filtered.headcount).toString(),
       subtitle: 'Membri attivi',
     },
     {
       label: 'Costo Orario Medio',
-      value: formatCurrency(
-        Object.values(annualTotals.avgHourlyCostBySeniority).reduce((sum, v) => sum + v, 0) /
-        Object.values(annualTotals.avgHourlyCostBySeniority).filter((v) => v > 0).length || 0
-      ) + '/h',
+      value: costCenterId
+        ? '-'
+        : formatCurrency(
+            Object.values(annualTotals.avgHourlyCostBySeniority).reduce((sum, v) => sum + v, 0) /
+            Object.values(annualTotals.avgHourlyCostBySeniority).filter((v) => v > 0).length || 0
+          ) + '/h',
       subtitle: 'Media ponderata',
     },
   ];
