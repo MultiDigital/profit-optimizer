@@ -24,21 +24,22 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, GitCompareArrows } from 'lucide-react';
-import { Member, MemberEvent, MemberEventInput, HRScenarioMember, ScenarioMemberEvent } from '@/lib/optimizer/types';
+import { Member, MemberEvent, MemberEventInput, HRScenarioMember, ScenarioMemberEvent, EventCostCenterAllocation } from '@/lib/optimizer/types';
 
 export default function HRPlanningPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [source, setSource] = useState('catalog');
   const [tab, setTab] = useState('planning');
+  const [cdcFilter, setCdcFilter] = useState<string | null>(null);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<MemberEvent | ScenarioMemberEvent | null>(null);
 
   // Catalog data
   const { members: catalogMembers, loading: membersLoading } = useMembers();
   const { settings, loading: settingsLoading } = useSettings();
-  const { allocations, loading: costCentersLoading } = useCostCenters();
-  const { events: catalogEvents, addEvent, updateEvent, deleteEvent, loading: eventsLoading } = useMemberEvents();
+  const { costCenters, allocations, loading: costCentersLoading } = useCostCenters();
+  const { events: catalogEvents, eventAllocations: catalogEventAllocations, addEvent, addEventWithAllocations, updateEvent, updateEventAllocations, deleteEvent, loading: eventsLoading } = useMemberEvents();
 
   // HR Scenarios
   const {
@@ -48,7 +49,9 @@ export default function HRPlanningPage() {
     duplicateHRScenario,
     fetchHRScenarioWithData,
     addScenarioEvent,
+    addScenarioEventWithAllocations,
     updateScenarioEvent,
+    updateScenarioEventAllocations,
     deleteScenarioEvent,
   } = useHRScenarios();
 
@@ -70,6 +73,9 @@ export default function HRPlanningPage() {
   const activeEvents = source === 'catalog'
     ? catalogEvents
     : (scenarioData?.events ?? []);
+  const activeEventAllocations: EventCostCenterAllocation[] = source === 'catalog'
+    ? catalogEventAllocations
+    : (scenarioData?.eventAllocations ?? []);
 
   // Computation
   const { yearlyView, isCalculating } = useHRPlanning(
@@ -77,6 +83,7 @@ export default function HRPlanningPage() {
     activeEvents,
     settings,
     allocations,
+    activeEventAllocations,
     year
   );
 
@@ -91,11 +98,16 @@ export default function HRPlanningPage() {
     ? catalogEvents
     : (compareData?.events ?? []);
 
+  const compareEventAllocations: EventCostCenterAllocation[] = compareSource === 'catalog'
+    ? catalogEventAllocations
+    : (compareData?.eventAllocations ?? []);
+
   const { yearlyView: compareYearlyView } = useHRPlanning(
     compareMembers,
     compareEvents,
     settings,
     allocations,
+    compareEventAllocations,
     year
   );
 
@@ -108,12 +120,19 @@ export default function HRPlanningPage() {
   }, [compareSource, fetchHRScenarioWithData]);
 
   // Event handlers
-  const handleSaveEvent = async (input: MemberEventInput) => {
+  const handleSaveEvent = async (input: MemberEventInput, cdcAllocations?: { cost_center_id: string; percentage: number }[]) => {
     if (source === 'catalog') {
       if (editingEvent) {
         await updateEvent(editingEvent.id, input);
+        if (input.field === 'cost_center_allocations' && cdcAllocations) {
+          await updateEventAllocations(editingEvent.id, cdcAllocations);
+        }
       } else {
-        await addEvent(input);
+        if (input.field === 'cost_center_allocations' && cdcAllocations) {
+          await addEventWithAllocations(input, cdcAllocations);
+        } else {
+          await addEvent(input);
+        }
       }
     } else {
       if (editingEvent) {
@@ -125,17 +144,30 @@ export default function HRPlanningPage() {
           end_date: input.end_date,
           note: input.note,
         });
+        if (input.field === 'cost_center_allocations' && cdcAllocations) {
+          await updateScenarioEventAllocations(editingEvent.id, cdcAllocations);
+        }
       } else {
-        await addScenarioEvent({
-          scenario_member_id: input.member_id,
-          field: input.field,
-          value: input.value,
-          start_date: input.start_date,
-          end_date: input.end_date,
-          note: input.note,
-        });
+        if (input.field === 'cost_center_allocations' && cdcAllocations) {
+          await addScenarioEventWithAllocations({
+            scenario_member_id: input.member_id,
+            field: input.field,
+            value: '',
+            start_date: input.start_date,
+            end_date: input.end_date,
+            note: input.note,
+          }, cdcAllocations);
+        } else {
+          await addScenarioEvent({
+            scenario_member_id: input.member_id,
+            field: input.field,
+            value: input.value,
+            start_date: input.start_date,
+            end_date: input.end_date,
+            note: input.note,
+          });
+        }
       }
-      // Refresh scenario data
       const refreshed = await fetchHRScenarioWithData(source);
       setScenarioData(refreshed);
     }
@@ -181,6 +213,17 @@ export default function HRPlanningPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={cdcFilter ?? 'all'} onValueChange={(v) => setCdcFilter(v === 'all' ? null : v)}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All cost centers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i centri di costo</SelectItem>
+              {costCenters.map((cc) => (
+                <SelectItem key={cc.id} value={cc.id}>{cc.code} - {cc.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <HRScenarioSelector
             source={source}
             onSourceChange={setSource}
@@ -193,7 +236,7 @@ export default function HRPlanningPage() {
       </div>
 
       {/* KPI Cards */}
-      <HRKPICards yearlyView={yearlyView} loading={loading || isCalculating} />
+      <HRKPICards yearlyView={yearlyView} loading={loading || isCalculating} costCenterId={cdcFilter} />
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
@@ -232,7 +275,7 @@ export default function HRPlanningPage() {
           {/* Yearly table */}
           <Card>
             <CardContent className="pt-6">
-              <HRYearlyTable yearlyView={yearlyView} loading={loading || isCalculating} />
+              <HRYearlyTable yearlyView={yearlyView} loading={loading || isCalculating} costCenterId={cdcFilter} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -263,6 +306,7 @@ export default function HRPlanningPage() {
               compareView={compareYearlyView}
               baseLabel={source === 'catalog' ? 'Catalogo' : (hrScenarios.find((s) => s.id === source)?.name ?? 'Scenario')}
               compareLabel={compareSource === 'catalog' ? 'Catalogo' : (hrScenarios.find((s) => s.id === compareSource)?.name ?? 'Scenario')}
+              costCenterId={cdcFilter}
             />
           )}
 
@@ -278,6 +322,16 @@ export default function HRPlanningPage() {
         onOpenChange={setEventDialogOpen}
         members={activeMembers}
         onSave={handleSaveEvent}
+        costCenters={costCenters}
+        editingEventAllocations={
+          editingEvent && editingEvent.field === 'cost_center_allocations'
+            ? activeEventAllocations.filter((a) =>
+                'member_id' in editingEvent
+                  ? a.member_event_id === editingEvent.id
+                  : a.scenario_member_event_id === editingEvent.id
+              )
+            : undefined
+        }
         editingEvent={editingEvent ? {
           id: editingEvent.id,
           member_id: 'member_id' in editingEvent ? editingEvent.member_id : (editingEvent as ScenarioMemberEvent).scenario_member_id,
