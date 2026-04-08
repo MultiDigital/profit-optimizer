@@ -1,4 +1,4 @@
-import { MemberEvent, MemberEventField, ScenarioMemberEvent } from '@/lib/optimizer/types';
+import { MemberEvent, MemberEventField, ScenarioMemberEvent, EventCostCenterAllocation } from '@/lib/optimizer/types';
 
 type AnyEvent = MemberEvent | ScenarioMemberEvent;
 
@@ -86,6 +86,44 @@ function lastDayOfMonth(month: string): string {
 }
 
 /**
+ * Resolve cost center allocations for a given month from events.
+ * Returns the allocations from the most recent active CDC event, or null if none.
+ */
+export function resolveCostCenterAllocationsForMonth(
+  events: AnyEvent[],
+  eventAllocations: EventCostCenterAllocation[],
+  month: string
+): EventCostCenterAllocation[] | null {
+  const monthStart = `${month}-01`;
+  const monthEnd = lastDayOfMonth(month);
+
+  // Filter CDC events active in this month
+  const cdcEvents = events.filter((e) => {
+    if (e.field !== 'cost_center_allocations') return false;
+    if (e.start_date > monthEnd) return false;
+    if (e.end_date !== null && e.end_date < monthStart) return false;
+    return true;
+  });
+
+  if (cdcEvents.length === 0) return null;
+
+  // Most recent start_date wins
+  cdcEvents.sort((a, b) => b.start_date.localeCompare(a.start_date));
+  const winningEvent = cdcEvents[0];
+
+  // Find allocations for this event
+  const eventId = winningEvent.id;
+  const allocations = eventAllocations.filter((a) => {
+    if ('member_id' in winningEvent) {
+      return a.member_event_id === eventId;
+    }
+    return a.scenario_member_event_id === eventId;
+  });
+
+  return allocations.length > 0 ? allocations : null;
+}
+
+/**
  * Parse event value to the correct type based on field.
  */
 export function parseEventValue(field: MemberEventField, value: string): number | string {
@@ -97,6 +135,8 @@ export function parseEventValue(field: MemberEventField, value: string): number 
       return parseFloat(value);
     case 'seniority':
     case 'category':
+      return value;
+    case 'cost_center_allocations':
       return value;
   }
 }
