@@ -246,6 +246,14 @@ export interface MemberCostCenterAllocation {
   updated_at?: string;
 }
 
+export interface EventCostCenterAllocation {
+  id: string;
+  member_event_id: string | null;
+  scenario_member_event_id: string | null;
+  cost_center_id: string;
+  percentage: number;
+}
+
 // Scenario types
 export interface Scenario {
   id: string;
@@ -354,7 +362,7 @@ export interface CapacitySettings {
 
 // ─── HR Planning Types ───────────────────────────────────────────────
 
-export type MemberEventField = 'salary' | 'ft_percentage' | 'seniority' | 'category' | 'capacity_percentage' | 'chargeable_days';
+export type MemberEventField = 'salary' | 'ft_percentage' | 'seniority' | 'category' | 'capacity_percentage' | 'chargeable_days' | 'cost_center_allocations';
 
 export interface MemberEvent {
   id: string;
@@ -454,6 +462,9 @@ export interface MonthlySnapshot {
   headcount: number;
   avgHourlyCostBySeniority: Record<SeniorityLevel, number>;
   costCenterBreakdown: Record<string, number>;
+  capacityByCostCenter: Record<string, number>;
+  fteByCostCenter: Record<string, number>;
+  headcountByCostCenter: Record<string, number>;
   memberDetails: MemberMonthDetail[];
 }
 
@@ -484,6 +495,9 @@ export interface YearlyView {
     headcount: number;
     avgHourlyCostBySeniority: Record<SeniorityLevel, number>;
     costCenterBreakdown: Record<string, number>;
+    capacityByCostCenter: Record<string, number>;
+    fteByCostCenter: Record<string, number>;
+    headcountByCostCenter: Record<string, number>;
   };
   monthlySnapshots: MonthlySnapshot[];
 }
