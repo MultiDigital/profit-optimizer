@@ -29,10 +29,15 @@ export function ViewProvider({ children }: { children: ReactNode }) {
   const [scenarioId, setScenarioIdState] = useState<ScenarioId>('baseline');
 
   // Hydrate from localStorage on mount (client only; SSR renders defaults).
+  // The set-state-in-effect rule flags this pattern as suboptimal, but it's
+  // the only SSR-safe way to read localStorage: during server render, window
+  // doesn't exist; during client render 1, we must match the server output
+  // (NOW_YEAR / 'baseline') to avoid a hydration mismatch; then we sync here.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = parseStoredView(window.localStorage.getItem(STORAGE_KEY));
     if (stored) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setYearState(clampYear(stored.year, YEAR_MIN, YEAR_MAX));
       setScenarioIdState(stored.scenarioId);
     }
