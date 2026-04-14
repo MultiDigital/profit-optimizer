@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isMemberActiveAtDate } from './resolve';
-import { resolveFieldAtDate, AnyResolverEvent } from './resolve';
+import { isMemberActiveAtDate, resolveFieldAtDate, AnyResolverEvent } from './resolve';
 
 describe('isMemberActiveAtDate', () => {
   it('returns true when date is after contract_start and end is null', () => {
@@ -32,9 +31,10 @@ describe('isMemberActiveAtDate', () => {
   });
 });
 
+let _nextEventId = 0;
 function canonicalEvent(partial: Partial<AnyResolverEvent>): AnyResolverEvent {
   return {
-    id: partial.id ?? 'evt-' + Math.random(),
+    id: partial.id ?? `evt-${_nextEventId++}`,
     field: 'salary',
     value: '0',
     start_date: '2024-01-01',
@@ -114,6 +114,14 @@ describe('resolveFieldAtDate', () => {
     const events = [
       scenarioEvent({ field: 'salary', value: '60000', start_date: '2025-01-01' }),
       canonicalEvent({ field: 'salary', value: '48000', start_date: '2025-07-01' }),
+    ];
+    expect(resolveFieldAtDate(events, 'salary', '2026-06-01')).toBe('48000');
+  });
+
+  it('breaks further ties by id ascending when start_date and priority are equal', () => {
+    const events = [
+      canonicalEvent({ id: 'evt-b', field: 'salary', value: '50000', start_date: '2025-01-01' }),
+      canonicalEvent({ id: 'evt-a', field: 'salary', value: '48000', start_date: '2025-01-01' }),
     ];
     expect(resolveFieldAtDate(events, 'salary', '2026-06-01')).toBe('48000');
   });

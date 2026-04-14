@@ -1,3 +1,5 @@
+import { MemberEventField } from '@/lib/optimizer/types';
+
 /**
  * Returns true if the member is within their contract window at `date`.
  * Bounds are inclusive on both ends.
@@ -15,8 +17,6 @@ export function isMemberActiveAtDate(
   if (contractEnd !== null && date > contractEnd) return false;
   return true;
 }
-
-import { MemberEventField } from '@/lib/optimizer/types';
 
 /**
  * Internal event shape used by the resolver.
@@ -43,6 +43,7 @@ export interface AnyResolverEvent {
  * Precedence:
  * 1. Most recent start_date wins.
  * 2. On tie, scenario events beat canonical.
+ * 3. On further tie, the event with the smaller `id` wins (deterministic).
  */
 export function resolveFieldAtDate(
   events: AnyResolverEvent[],
@@ -66,7 +67,10 @@ export function resolveFieldAtDate(
     if (a.start_date !== b.start_date) {
       return b.start_date.localeCompare(a.start_date);
     }
-    return priorityRank(b.priority) - priorityRank(a.priority);
+    if (a.priority !== b.priority) {
+      return priorityRank(b.priority) - priorityRank(a.priority);
+    }
+    return a.id.localeCompare(b.id);
   });
   return active[0].value;
 }
