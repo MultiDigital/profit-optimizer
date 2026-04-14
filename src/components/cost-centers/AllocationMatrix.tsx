@@ -27,7 +27,15 @@ interface AllocationMatrixProps {
   costCenters: CostCenter[];
   allocations: MemberCostCenterAllocation[];
   capacitySettings: CapacitySettings;
-  onSetAllocation: (memberId: string, costCenterId: string, percentage: number) => Promise<void>;
+  onSetAllocation?: (memberId: string, costCenterId: string, percentage: number) => Promise<void>;
+  readOnly?: boolean;
+  /**
+   * Optional resolver for the percentage to display in each (member, costCenter) cell.
+   * When omitted, falls back to `allocations` (legacy editable behaviour).
+   * When provided, the matrix displays these resolved values — typically from
+   * `resolveWorkforceAtDate` output — and edit cells are disabled.
+   */
+  resolveCellPercentage?: (memberId: string, costCenterId: string) => number;
 }
 
 export function AllocationMatrix({
@@ -36,7 +44,11 @@ export function AllocationMatrix({
   allocations,
   capacitySettings,
   onSetAllocation,
+  readOnly,
+  resolveCellPercentage,
 }: AllocationMatrixProps) {
+  const isReadOnly = readOnly === true || resolveCellPercentage !== undefined;
+
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -59,6 +71,11 @@ export function AllocationMatrix({
     },
     [allocations]
   );
+
+  function getMemberTotalResolved(memberId: string): number {
+    if (!resolveCellPercentage) return 0;
+    return costCenters.reduce((sum, cc) => sum + resolveCellPercentage(memberId, cc.id), 0);
+  }
 
   const getCostCenterTotals = useCallback(
     (costCenterId: string) => {
@@ -88,6 +105,7 @@ export function AllocationMatrix({
   const cellKey = (memberId: string, ccId: string) => `${memberId}-${ccId}`;
 
   const handleCellClick = (memberId: string, ccId: string) => {
+    if (isReadOnly) return;
     const key = cellKey(memberId, ccId);
     const current = getAllocation(memberId, ccId);
     setEditingCell(key);
@@ -95,6 +113,7 @@ export function AllocationMatrix({
   };
 
   const handleCellBlur = async (memberId: string, ccId: string) => {
+    if (isReadOnly) return;
     const key = cellKey(memberId, ccId);
     if (editingCell !== key) return;
 
@@ -106,7 +125,7 @@ export function AllocationMatrix({
       return;
     }
 
-    if (newValue !== current) {
+    if (newValue !== current && onSetAllocation) {
       setSaving(true);
       try {
         await onSetAllocation(memberId, ccId, newValue);
@@ -151,7 +170,9 @@ export function AllocationMatrix({
         </TableHeader>
         <TableBody>
           {members.map((member) => {
-            const total = getMemberTotal(member.id);
+            const total = resolveCellPercentage
+              ? getMemberTotalResolved(member.id)
+              : getMemberTotal(member.id);
             const isOver = total > 100;
 
             return (
@@ -166,15 +187,19 @@ export function AllocationMatrix({
                 </TableCell>
                 {costCenters.map((cc) => {
                   const key = cellKey(member.id, cc.id);
-                  const pct = getAllocation(member.id, cc.id);
-                  const isEditing = editingCell === key;
+                  const pct = resolveCellPercentage
+                    ? resolveCellPercentage(member.id, cc.id)
+                    : getAllocation(member.id, cc.id);
+                  const isEditing = !isReadOnly && editingCell === key;
 
                   return (
                     <TableCell
                       key={cc.id}
                       className="text-center p-1"
                     >
-                      {isEditing ? (
+                      {isReadOnly ? (
+                        <span>{pct > 0 ? `${pct}%` : '—'}</span>
+                      ) : isEditing ? (
                         <Input
                           type="number"
                           className="h-7 w-20 mx-auto text-center text-xs"
