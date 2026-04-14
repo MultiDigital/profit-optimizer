@@ -12,6 +12,8 @@ import {
   CostCenter,
   DEFAULT_SETTINGS,
   Member,
+  MemberEvent,
+  ScenarioMemberEvent,
   SENIORITY_LEVELS,
   SENIORITY_LABELS,
   MEMBER_CATEGORY_LABELS,
@@ -162,19 +164,17 @@ export default function CostCentersPage() {
   // Resolve workforce at mid-year of the selected year.
   const resolved = useMemo(() => {
     const anchorDate = `${year}-06-01`;
-    // bundle.members is Member[] when baseline, HRScenarioMember[] when scenario.
-    // HRScenarioMember is structurally compatible with Member for the resolver
-    // (shares all required fields); cast to satisfy the resolver signature.
-    // bundle.events is MemberEvent[] when baseline, ScenarioMemberEvent[] when scenario.
-    // ScenarioMemberEvent uses scenario_member_id instead of member_id; casting to
-    // MemberEvent[] is safe here because the resolver filters by member_id — scenario
-    // events won't match any canonical member IDs, so they're effectively ignored.
-    // PR 5 will introduce proper scenario-event routing through the resolver.
+    const canonicalEvents = bundle.source === 'baseline'
+      ? (bundle.events as MemberEvent[])
+      : [];
+    const scenarioEvents = bundle.source === 'scenario'
+      ? (bundle.events as ScenarioMemberEvent[])
+      : [];
     return resolveWorkforceAtDate(
       bundle.members as Member[],
       bundle.baseAllocations,
-      bundle.events as import('@/lib/optimizer/types').MemberEvent[],
-      [],
+      canonicalEvents,
+      scenarioEvents,
       bundle.eventAllocations,
       anchorDate,
     );
