@@ -31,8 +31,8 @@ const baseAllocations: MemberCostCenterAllocation[] = [
   { id: 'a-1', member_id: 'm-1', cost_center_id: 'cc-a', percentage: 100 },
 ];
 
-describe('selectScenarioData', () => {
-  it('returns baseline bundle when scenarioId is "baseline"', () => {
+describe('selectScenarioData (post-delta)', () => {
+  it('baseline bundle has canonical arrays + empty synthetic', () => {
     const result = selectScenarioData({
       scenarioId: 'baseline',
       catalogMembers,
@@ -43,16 +43,16 @@ describe('selectScenarioData', () => {
       scenarios: [],
     });
     expect(result.source).toBe('baseline');
-    expect(result.scenarioName).toBeNull();
-    expect(result.members).toBe(catalogMembers);
-    expect(result.events).toBe(catalogEvents);
-    expect(result.eventAllocations).toBe(catalogEventAllocations);
+    expect(result.canonicalMembers).toBe(catalogMembers);
+    expect(result.syntheticMembers).toEqual([]);
+    expect(result.canonicalEvents).toBe(catalogEvents);
+    expect(result.scenarioEvents).toEqual([]);
     expect(result.baseAllocations).toBe(baseAllocations);
   });
 
-  it('returns baseline bundle when scenarioId is a UUID but scenarios list is empty (invalid selection)', () => {
-    const result = selectScenarioData({
-      scenarioId: 'deleted-id',
+  it('scenario-loading or deleted-id falls back to baseline', () => {
+    const r1 = selectScenarioData({
+      scenarioId: 'deleted',
       catalogMembers,
       catalogEvents,
       catalogEventAllocations,
@@ -60,19 +60,32 @@ describe('selectScenarioData', () => {
       scenarioData: null,
       scenarios: [],
     });
-    expect(result.source).toBe('baseline');
-    expect(result.scenarioName).toBeNull();
+    expect(r1.source).toBe('baseline');
+
+    const scenarios: HRScenario[] = [
+      { id: 's-1', user_id: 'u-1', name: 'Alt', created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
+    ];
+    const r2 = selectScenarioData({
+      scenarioId: 's-1',
+      catalogMembers,
+      catalogEvents,
+      catalogEventAllocations,
+      baseAllocations,
+      scenarioData: null, // still loading
+      scenarios,
+    });
+    expect(r2.source).toBe('baseline');
   });
 
-  it('returns scenario bundle when scenarioId matches a known scenario AND scenarioData is loaded', () => {
-    const scenarioMembers: HRScenarioMember[] = [
+  it('scenario overlay combines canonical + synthetic members and both event streams', () => {
+    const syntheticMembers: HRScenarioMember[] = [
       {
-        id: 'sm-1',
+        id: 'syn-1',
         user_id: 'u-1',
         hr_scenario_id: 's-1',
         source_member_id: null,
-        first_name: 'Bob',
-        last_name: 'B',
+        first_name: 'What-If',
+        last_name: 'Hire',
         category: 'dipendente',
         seniority: 'senior',
         salary: 80000,
@@ -82,20 +95,38 @@ describe('selectScenarioData', () => {
         cost_percentage: 100,
         contract_start_date: '2024-01-01',
         contract_end_date: null,
-        is_synthetic: false,
+        is_synthetic: true,
         created_at: '2024-01-01T00:00:00Z',
       },
     ];
-    const scenarioEvents: ScenarioMemberEvent[] = [];
-    const scenarioEventAllocations: EventCostCenterAllocation[] = [];
-    const scenarios: HRScenario[] = [
+    const scenarioEvents: ScenarioMemberEvent[] = [
       {
-        id: 's-1',
+        id: 'se-canonical',
         user_id: 'u-1',
-        name: 'Alt Q2',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
+        scenario_member_id: null,
+        member_id: 'm-1', // override of canonical m-1
+        field: 'salary',
+        value: '60000',
+        start_date: '2026-01-01',
+        end_date: null,
+        note: null,
+        created_at: '2026-01-01T00:00:00Z',
       },
+      {
+        id: 'se-synthetic',
+        user_id: 'u-1',
+        scenario_member_id: 'syn-1',
+        member_id: null,
+        field: 'salary',
+        value: '85000',
+        start_date: '2026-06-01',
+        end_date: null,
+        note: null,
+        created_at: '2026-06-01T00:00:00Z',
+      },
+    ];
+    const scenarios: HRScenario[] = [
+      { id: 's-1', user_id: 'u-1', name: 'Alt', created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
     ];
     const result = selectScenarioData({
       scenarioId: 's-1',
@@ -105,95 +136,18 @@ describe('selectScenarioData', () => {
       baseAllocations,
       scenarioData: {
         scenario: scenarios[0],
-        members: scenarioMembers,
+        members: syntheticMembers,
         events: scenarioEvents,
-        eventAllocations: scenarioEventAllocations,
-      },
-      scenarios,
-    });
-    expect(result.source).toBe('scenario');
-    expect(result.scenarioName).toBe('Alt Q2');
-    expect(result.members).toBe(scenarioMembers);
-    expect(result.events).toBe(scenarioEvents);
-    expect(result.eventAllocations).toBe(scenarioEventAllocations);
-    // The scenario member has source_member_id: null, so remapping yields no matches
-    expect(result.baseAllocations).toEqual([]);
-  });
-
-  it('remaps baseAllocations to scenario member IDs when scenario is active', () => {
-    const scenarioMembers: HRScenarioMember[] = [
-      {
-        id: 'sm-1',
-        user_id: 'u-1',
-        hr_scenario_id: 's-1',
-        source_member_id: 'm-1', // copy of canonical m-1
-        first_name: 'Alice',
-        last_name: 'A',
-        category: 'dipendente',
-        seniority: 'middle',
-        salary: 40000,
-        ft_percentage: 100,
-        chargeable_days: null,
-        capacity_percentage: 100,
-        cost_percentage: 100,
-        contract_start_date: '2024-01-01',
-        contract_end_date: null,
-        is_synthetic: false,
-        created_at: '2024-01-01T00:00:00Z',
-      },
-    ];
-    const scenarios: HRScenario[] = [
-      {
-        id: 's-1',
-        user_id: 'u-1',
-        name: 'Alt',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      },
-    ];
-    const result = selectScenarioData({
-      scenarioId: 's-1',
-      catalogMembers,
-      catalogEvents,
-      catalogEventAllocations,
-      baseAllocations, // has { member_id: 'm-1', cost_center_id: 'cc-a', percentage: 100 }
-      scenarioData: {
-        scenario: scenarios[0],
-        members: scenarioMembers,
-        events: [],
         eventAllocations: [],
       },
       scenarios,
     });
     expect(result.source).toBe('scenario');
-    expect(result.baseAllocations).toHaveLength(1);
-    expect(result.baseAllocations[0].member_id).toBe('sm-1'); // remapped from 'm-1'
-    expect(result.baseAllocations[0].cost_center_id).toBe('cc-a');
-    expect(result.baseAllocations[0].percentage).toBe(100);
-  });
-
-  it('returns baseline bundle while scenarioData is still loading (scenarios list has the id but data not yet fetched)', () => {
-    const scenarios: HRScenario[] = [
-      {
-        id: 's-1',
-        user_id: 'u-1',
-        name: 'Alt Q2',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      },
-    ];
-    const result = selectScenarioData({
-      scenarioId: 's-1',
-      catalogMembers,
-      catalogEvents,
-      catalogEventAllocations,
-      baseAllocations,
-      scenarioData: null,
-      scenarios,
-    });
-    // Fallback to baseline so the UI doesn't flash empty
-    expect(result.source).toBe('baseline');
-    expect(result.scenarioName).toBeNull();
-    expect(result.members).toBe(catalogMembers);
+    expect(result.scenarioName).toBe('Alt');
+    expect(result.canonicalMembers).toBe(catalogMembers);
+    expect(result.syntheticMembers).toBe(syntheticMembers);
+    expect(result.canonicalEvents).toBe(catalogEvents);
+    expect(result.scenarioEvents).toBe(scenarioEvents);
+    expect(result.baseAllocations).toBe(baseAllocations);
   });
 });

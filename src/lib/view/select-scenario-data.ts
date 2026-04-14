@@ -13,8 +13,10 @@ export interface ResolvedScenarioBundle {
   source: 'baseline' | 'scenario';
   scenarioId: string; // 'baseline' or the matched scenario UUID
   scenarioName: string | null;
-  members: Member[] | HRScenarioMember[];
-  events: MemberEvent[] | ScenarioMemberEvent[];
+  canonicalMembers: Member[];
+  syntheticMembers: HRScenarioMember[];
+  canonicalEvents: MemberEvent[];
+  scenarioEvents: ScenarioMemberEvent[];
   eventAllocations: EventCostCenterAllocation[];
   baseAllocations: MemberCostCenterAllocation[];
 }
@@ -30,20 +32,24 @@ export interface SelectScenarioDataInput {
 }
 
 /**
- * Decide which data bundle an analysis page should use, given the
- * context's `scenarioId` and whatever the caller has fetched.
+ * Decide which data bundle an analysis page should use.
  *
- * Fallback rules:
- * - scenarioId === 'baseline' → catalog bundle
- * - scenarioId is a UUID but not found in `scenarios` (e.g., deleted) → catalog
- * - scenarioId matches a known scenario but `scenarioData` hasn't loaded → catalog
- *   (prevents empty flash; ScenarioSourcePicker will auto-reset to baseline too)
- * - scenarioId matches AND scenarioData is ready → scenario bundle
+ * Fallback rules (unchanged from PR 4):
+ * - scenarioId === 'baseline' → baseline bundle (catalog only, no synthetic members)
+ * - scenarioId UUID not in scenarios list → baseline
+ * - scenarioId UUID matches but scenarioData not yet loaded → baseline (prevents flash)
+ * - scenarioId UUID matches AND scenarioData ready → overlay bundle
  *
- * Note: when returning a scenario bundle, catalog `baseAllocations` are remapped
- * so their `member_id` points to scenario-member IDs via `source_member_id`.
- * Without this remapping the resolver's filter would return nothing for every
- * scenario member. PR 5's delta overlay refactor will eliminate this step.
+ * In the overlay (scenario) bundle:
+ * - canonicalMembers is always the catalog (scenarios overlay, don't replace)
+ * - syntheticMembers are the scenario's own HRScenarioMember rows
+ * - canonicalEvents is always the catalog's member_events
+ * - scenarioEvents contains the scenario's own events (each with either
+ *   member_id pointing to a canonical member or scenario_member_id pointing
+ *   to a synthetic — never both, enforced by the PR 5a CHECK constraint).
+ * - eventAllocations is the merged set (catalog + scenario sidecar rows)
+ * - baseAllocations is the catalog's member_cost_center_allocations, unchanged
+ *   (no more source_member_id remapping — canonical members keep their IDs)
  */
 export function selectScenarioData(input: SelectScenarioDataInput): ResolvedScenarioBundle {
   const {
@@ -56,47 +62,23 @@ export function selectScenarioData(input: SelectScenarioDataInput): ResolvedScen
     scenarios,
   } = input;
 
-  if (scenarioId === 'baseline') {
-    return baselineBundle();
-  }
+  if (scenarioId === 'baseline') return baselineBundle();
 
   const scenario = scenarios.find((s) => s.id === scenarioId);
-  if (!scenario) {
-    return baselineBundle();
-  }
+  if (!scenario) return baselineBundle();
 
-  if (!scenarioData || scenarioData.scenario.id !== scenarioId) {
-    return baselineBundle();
-  }
-
-  // Before returning the scenario bundle, translate catalog baseAllocations
-  // so their member_id points to scenario-member IDs. Today's scenarios are
-  // full-copies of canonical members, carrying a source_member_id back-reference.
-  // Without this, the resolver filters `baseAllocations.filter(a => a.member_id === m.id)`
-  // would return nothing for every scenario member.
-  // PR 5's delta overlay refactor will eliminate this remapping.
-  const sourceToScenarioId = new Map<string, string>();
-  for (const sm of scenarioData.members) {
-    if (sm.source_member_id) {
-      sourceToScenarioId.set(sm.source_member_id, sm.id);
-    }
-  }
-  const remappedBaseAllocations: MemberCostCenterAllocation[] = baseAllocations
-    .map((a) => {
-      const scenarioMemberId = sourceToScenarioId.get(a.member_id);
-      if (!scenarioMemberId) return null;
-      return { ...a, member_id: scenarioMemberId };
-    })
-    .filter((a): a is MemberCostCenterAllocation => a !== null);
+  if (!scenarioData || scenarioData.scenario.id !== scenarioId) return baselineBundle();
 
   return {
     source: 'scenario',
     scenarioId,
     scenarioName: scenario.name,
-    members: scenarioData.members,
-    events: scenarioData.events,
-    eventAllocations: scenarioData.eventAllocations,
-    baseAllocations: remappedBaseAllocations,
+    canonicalMembers: catalogMembers,
+    syntheticMembers: scenarioData.members,
+    canonicalEvents: catalogEvents,
+    scenarioEvents: scenarioData.events,
+    eventAllocations: [...catalogEventAllocations, ...scenarioData.eventAllocations],
+    baseAllocations,
   };
 
   function baselineBundle(): ResolvedScenarioBundle {
@@ -104,8 +86,10 @@ export function selectScenarioData(input: SelectScenarioDataInput): ResolvedScen
       source: 'baseline',
       scenarioId: 'baseline',
       scenarioName: null,
-      members: catalogMembers,
-      events: catalogEvents,
+      canonicalMembers: catalogMembers,
+      syntheticMembers: [],
+      canonicalEvents: catalogEvents,
+      scenarioEvents: [],
       eventAllocations: catalogEventAllocations,
       baseAllocations,
     };
