@@ -34,14 +34,20 @@ import {
   MEMBER_CATEGORY_LABELS,
   MemberCategory,
   CapacitySettings,
+  CostCenter,
 } from '@/lib/optimizer/types';
+import { InitialCdcInput } from './InitialCdcInput';
 
 interface WorkforceCardProps {
   members: Member[];
   loading?: boolean;
   capacitySettings: CapacitySettings;
   upcomingCounts: Map<string, number>;
-  onAddMember: (input: MemberInput) => Promise<void>;
+  costCenters: CostCenter[];
+  onAddMember: (
+    input: MemberInput,
+    cdcAllocations?: { cost_center_id: string; percentage: number }[],
+  ) => Promise<void>;
   onUpdateMember: (id: string, input: Partial<MemberInput>) => Promise<void>;
   onDeleteMember: (id: string) => Promise<void>;
 }
@@ -51,6 +57,7 @@ export function WorkforceCard({
   loading,
   capacitySettings,
   upcomingCounts,
+  costCenters,
   onAddMember,
   onUpdateMember,
   onDeleteMember,
@@ -59,9 +66,11 @@ export function WorkforceCard({
   const [formData, setFormData] = useState<MemberInput>(DEFAULT_MEMBER);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [initialCdc, setInitialCdc] = useState<Record<string, number>>({});
 
   const resetForm = () => {
     setFormData(DEFAULT_MEMBER);
+    setInitialCdc({});
     setError(null);
   };
 
@@ -83,9 +92,18 @@ export function WorkforceCard({
       return;
     }
 
+    const cdcTotal = Object.values(initialCdc).reduce((s, n) => s + n, 0);
+    if (cdcTotal !== 0 && cdcTotal !== 100) {
+      setError('Cost center allocation must total 0% (skip) or 100%.');
+      return;
+    }
+
     setSaving(true);
     try {
-      await onAddMember(formData);
+      const cdcAllocs = Object.entries(initialCdc)
+        .filter(([, pct]) => pct > 0)
+        .map(([cost_center_id, percentage]) => ({ cost_center_id, percentage }));
+      await onAddMember(formData, cdcAllocs.length > 0 ? cdcAllocs : undefined);
       setIsOpen(false);
       resetForm();
     } finally {
@@ -239,6 +257,11 @@ export function WorkforceCard({
                     />
                   </div>
                 </div>
+                <InitialCdcInput
+                  costCenters={costCenters}
+                  value={initialCdc}
+                  onChange={setInitialCdc}
+                />
               </div>
 
               <DialogFooter>
