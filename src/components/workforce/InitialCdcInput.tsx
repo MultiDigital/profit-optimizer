@@ -32,9 +32,9 @@ export function InitialCdcInput({ costCenters, value, onChange }: InitialCdcInpu
         <Label>Initial Cost Center Allocation</Label>
         <span
           className={
-            total === 100
+            Math.abs(total - 100) < 0.01
               ? 'text-xs text-green-500'
-              : total === 0
+              : Math.abs(total) < 0.01
                 ? 'text-xs text-muted-foreground'
                 : 'text-xs text-orange-500'
           }

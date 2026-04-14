@@ -93,7 +93,10 @@ export function WorkforceCard({
     }
 
     const cdcTotal = Object.values(initialCdc).reduce((s, n) => s + n, 0);
-    if (cdcTotal !== 0 && cdcTotal !== 100) {
+    // Use a small epsilon tolerance so 33.3/33.3/33.3 = 99.9 still validates.
+    const isZero = Math.abs(cdcTotal) < 0.01;
+    const isHundred = Math.abs(cdcTotal - 100) < 0.01;
+    if (!isZero && !isHundred) {
       setError('Cost center allocation must total 0% (skip) or 100%.');
       return;
     }
