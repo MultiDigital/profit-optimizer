@@ -53,14 +53,13 @@ export function useHRScenarios() {
 
   const addHRScenario = useCallback(async (
     name: string,
-    catalogMembers: Member[],
-    catalogEvents: MemberEvent[]
+    _catalogMembers?: Member[],  // unused — kept for signature compat; will be removed in PR 5b
+    _catalogEvents?: MemberEvent[], // unused — kept for signature compat
   ) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // 1. Create scenario
       const { data: scenario, error: scenarioError } = await supabase
         .from('hr_scenarios')
         .insert({ user_id: user.id, name })
@@ -69,117 +68,16 @@ export function useHRScenarios() {
 
       if (scenarioError) throw scenarioError;
 
-      // 2. Copy catalog members
-      if (catalogMembers.length > 0) {
-        const memberRows = catalogMembers.map((m) => ({
-          user_id: user.id,
-          hr_scenario_id: scenario.id,
-          source_member_id: m.id,
-          first_name: m.first_name,
-          last_name: m.last_name,
-          category: m.category,
-          seniority: m.seniority,
-          salary: m.salary,
-          ft_percentage: m.ft_percentage ?? 100,
-          chargeable_days: m.chargeable_days,
-          capacity_percentage: 100,
-          cost_percentage: 100,
-          contract_start_date: m.contract_start_date ?? null,
-          contract_end_date: m.contract_end_date ?? null,
-        }));
-
-        const { data: insertedMembers, error: memberError } = await supabase
-          .from('hr_scenario_members')
-          .insert(memberRows)
-          .select();
-
-        if (memberError) throw memberError;
-
-        // 3. Copy catalog events mapped to new scenario member IDs
-        if (catalogEvents.length > 0 && insertedMembers) {
-          const memberIdMap = new Map<string, string>();
-          for (const inserted of insertedMembers) {
-            if (inserted.source_member_id) {
-              memberIdMap.set(inserted.source_member_id, inserted.id);
-            }
-          }
-
-          const eventRows = catalogEvents
-            .filter((e) => memberIdMap.has(e.member_id))
-            .map((e) => ({
-              user_id: user.id,
-              scenario_member_id: memberIdMap.get(e.member_id)!,
-              field: e.field,
-              value: e.value,
-              start_date: e.start_date,
-              end_date: e.end_date,
-              note: e.note,
-            }));
-
-          if (eventRows.length > 0) {
-            const { error: eventError } = await supabase
-              .from('scenario_member_events')
-              .insert(eventRows);
-
-            if (eventError) throw eventError;
-          }
-
-          // Copy CDC event allocations
-          if (eventRows.length > 0) {
-            const { data: insertedEvents } = await supabase
-              .from('scenario_member_events')
-              .select('*')
-              .eq('user_id', user.id)
-              .in('scenario_member_id', insertedMembers.map((m: HRScenarioMember) => m.id))
-              .order('start_date', { ascending: true });
-
-            if (insertedEvents) {
-              const cdcCatalogEvents = catalogEvents.filter((e) => e.field === 'cost_center_allocations');
-              if (cdcCatalogEvents.length > 0) {
-                const catalogEventIds = cdcCatalogEvents.map((e) => e.id);
-                const { data: srcAllocs } = await supabase
-                  .from('event_cost_center_allocations')
-                  .select('*')
-                  .in('member_event_id', catalogEventIds);
-
-                if (srcAllocs && srcAllocs.length > 0) {
-                  for (const cdcEvent of cdcCatalogEvents) {
-                    const newMemberId = memberIdMap.get(cdcEvent.member_id);
-                    if (!newMemberId) continue;
-                    const matchingNewEvent = insertedEvents.find(
-                      (e: ScenarioMemberEvent) =>
-                        e.scenario_member_id === newMemberId &&
-                        e.field === 'cost_center_allocations' &&
-                        e.start_date === cdcEvent.start_date
-                    );
-                    if (!matchingNewEvent) continue;
-                    const eventAllocs = srcAllocs.filter((a: EventCostCenterAllocation) => a.member_event_id === cdcEvent.id);
-                    if (eventAllocs.length > 0) {
-                      await supabase.from('event_cost_center_allocations').insert(
-                        eventAllocs.map((a: EventCostCenterAllocation) => ({
-                          scenario_member_event_id: matchingNewEvent.id,
-                          cost_center_id: a.cost_center_id,
-                          percentage: a.percentage,
-                        }))
-                      );
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
       setHrScenarios((prev) => [scenario, ...prev]);
-      toast.success('HR scenario created', { description: `${name} has been created` });
-      return scenario as HRScenario;
+      toast.success('Scenario created', { description: `'${name}' created (empty — add changes via the employee pages).` });
+      return scenario;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create HR scenario';
+      const message = err instanceof Error ? err.message : 'Failed to create scenario';
       setError(message);
-      toast.error('Failed to create HR scenario', { description: message });
+      toast.error('Failed to create scenario', { description: message });
       throw err;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const deleteHRScenario = useCallback(async (id: string) => {
@@ -222,17 +120,39 @@ export function useHRScenarios() {
       if (membersError) throw membersError;
 
       const memberIds = (members || []).map((m: HRScenarioMember) => m.id);
-      let events: ScenarioMemberEvent[] = [];
-      if (memberIds.length > 0) {
-        const { data: eventData, error: eventsError } = await supabase
+
+      // Fetch events linked to synthetic members (scenario_member_id) AND events
+      // that override canonical members in this scenario (member_id). The latter
+      // cannot be scoped to this scenario server-side today because
+      // scenario_member_events has no hr_scenario_id column yet — we fetch all
+      // canonical-override events the user owns and filter later. PR 5b adds
+      // the column to enable proper server-side scoping.
+      const [syntheticEventsQ, canonicalOverridesQ] = await Promise.all([
+        memberIds.length > 0
+          ? supabase
+              .from('scenario_member_events')
+              .select('*')
+              .in('scenario_member_id', memberIds)
+              .order('start_date', { ascending: true })
+          : Promise.resolve({ data: [] as ScenarioMemberEvent[], error: null }),
+        supabase
           .from('scenario_member_events')
           .select('*')
-          .in('scenario_member_id', memberIds)
-          .order('start_date', { ascending: true });
+          .not('member_id', 'is', null)
+          .order('start_date', { ascending: true }),
+      ]);
 
-        if (eventsError) throw eventsError;
-        events = eventData || [];
-      }
+      if (syntheticEventsQ.error) throw syntheticEventsQ.error;
+      if (canonicalOverridesQ.error) throw canonicalOverridesQ.error;
+
+      // Combine. The PR 5a data migration leaves canonical-override events
+      // unambiguously scoped per user (each copy came from one scenario, so no
+      // cross-scenario mixing exists). PR 5b will author new ones with proper
+      // hr_scenario_id scoping.
+      let events: ScenarioMemberEvent[] = [
+        ...(syntheticEventsQ.data ?? []),
+        ...(canonicalOverridesQ.data ?? []),
+      ];
 
       // Fetch event CDC allocations
       const cdcEventIds = events
