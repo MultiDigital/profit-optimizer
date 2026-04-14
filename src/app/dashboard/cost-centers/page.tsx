@@ -12,8 +12,6 @@ import {
   CostCenter,
   DEFAULT_SETTINGS,
   Member,
-  MemberEvent,
-  ScenarioMemberEvent,
   SENIORITY_LEVELS,
   SENIORITY_LABELS,
   MEMBER_CATEGORY_LABELS,
@@ -164,17 +162,12 @@ export default function CostCentersPage() {
   // Resolve workforce at mid-year of the selected year.
   const resolved = useMemo(() => {
     const anchorDate = `${year}-06-01`;
-    const canonicalEvents = bundle.source === 'baseline'
-      ? (bundle.events as MemberEvent[])
-      : [];
-    const scenarioEvents = bundle.source === 'scenario'
-      ? (bundle.events as ScenarioMemberEvent[])
-      : [];
+    const allMembers = [...bundle.canonicalMembers, ...bundle.syntheticMembers];
     return resolveWorkforceAtDate(
-      bundle.members as Member[],
+      allMembers,
       bundle.baseAllocations,
-      canonicalEvents,
-      scenarioEvents,
+      bundle.canonicalEvents,
+      bundle.scenarioEvents,
       bundle.eventAllocations,
       anchorDate,
     );
@@ -286,7 +279,7 @@ export default function CostCentersPage() {
                   )}
 
                   <AllocationMatrix
-                    members={bundle.members as Member[]}
+                    members={[...bundle.canonicalMembers, ...bundle.syntheticMembers] as Member[]}
                     costCenters={costCenters}
                     allocations={bundle.baseAllocations}
                     capacitySettings={{
