@@ -33,9 +33,18 @@ WHERE sme.scenario_member_id = sm.id
 -- 5. Drop scenario events that are byte-identical to canonical events (no-op overrides).
 -- These were auto-duplicated at scenario creation and never edited by the user.
 -- Cascade on event_cost_center_allocations removes their CDC rows automatically.
+--
+-- IMPORTANT: exclude field='cost_center_allocations'. For CDC events, `value`
+-- is always the empty string — the actual allocation data lives in the sidecar
+-- event_cost_center_allocations table, which this byte-identical check doesn't
+-- inspect. Without this exclusion, a user-customized scenario CDC event would
+-- be misclassified as duplicate and destroyed (along with its sidecar rows via
+-- CASCADE). Keep all CDC events; the resolver's tie-break rules handle any
+-- functional redundancy correctly.
 DELETE FROM scenario_member_events sme
 USING member_events me
 WHERE sme.member_id IS NOT NULL
+  AND sme.field != 'cost_center_allocations'
   AND sme.member_id = me.member_id
   AND sme.field = me.field
   AND sme.value = me.value
