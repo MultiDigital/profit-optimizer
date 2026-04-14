@@ -326,15 +326,15 @@ export default function HRPlanningPage() {
         editingEventAllocations={
           editingEvent && editingEvent.field === 'cost_center_allocations'
             ? activeEventAllocations.filter((a) =>
-                'member_id' in editingEvent
-                  ? a.member_event_id === editingEvent.id
-                  : a.scenario_member_event_id === editingEvent.id
+                'scenario_member_id' in editingEvent
+                  ? a.scenario_member_event_id === editingEvent.id
+                  : a.member_event_id === editingEvent.id
               )
             : undefined
         }
         editingEvent={editingEvent ? {
           id: editingEvent.id,
-          member_id: 'member_id' in editingEvent ? editingEvent.member_id : (editingEvent as ScenarioMemberEvent).scenario_member_id,
+          member_id: 'scenario_member_id' in editingEvent ? ((editingEvent as ScenarioMemberEvent).scenario_member_id ?? (editingEvent as ScenarioMemberEvent).member_id ?? '') : editingEvent.member_id,
           field: editingEvent.field,
           value: editingEvent.value,
           start_date: editingEvent.start_date,

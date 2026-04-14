@@ -413,6 +413,7 @@ export interface HRScenarioMember {
   cost_percentage: number;
   contract_start_date: string | null;
   contract_end_date: string | null;
+  is_synthetic: boolean;
   created_at: string;
 }
 
@@ -433,7 +434,11 @@ export interface HRScenarioMemberInput {
 export interface ScenarioMemberEvent {
   id: string;
   user_id: string;
-  scenario_member_id: string;
+  // Exactly one of these two FKs is populated (CHECK constraint enforces it):
+  // - `member_id` when the event overrides a canonical employee's timeline.
+  // - `scenario_member_id` when the event belongs to a synthetic (scenario-only) employee.
+  scenario_member_id: string | null;
+  member_id: string | null;
   field: MemberEventField;
   value: string;
   start_date: string;
@@ -443,7 +448,9 @@ export interface ScenarioMemberEvent {
 }
 
 export interface ScenarioMemberEventInput {
-  scenario_member_id: string;
+  // Exactly one of these two must be set by the caller.
+  scenario_member_id?: string | null;
+  member_id?: string | null;
   field: MemberEventField;
   value: string;
   start_date: string;

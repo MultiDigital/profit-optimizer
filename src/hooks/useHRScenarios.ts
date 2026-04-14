@@ -309,10 +309,10 @@ export function useHRScenarios() {
           }
 
           const eventRows = source.events
-            .filter((e) => memberIdMap.has(e.scenario_member_id))
+            .filter((e) => e.scenario_member_id !== null && memberIdMap.has(e.scenario_member_id))
             .map((e) => ({
               user_id: user.id,
-              scenario_member_id: memberIdMap.get(e.scenario_member_id)!,
+              scenario_member_id: memberIdMap.get(e.scenario_member_id!)!,
               field: e.field,
               value: e.value,
               start_date: e.start_date,
@@ -334,7 +334,7 @@ export function useHRScenarios() {
 
             if (insertedEvents) {
               for (const srcEvent of source.events.filter((e) => e.field === 'cost_center_allocations')) {
-                const newMemberId = memberIdMap.get(srcEvent.scenario_member_id);
+                const newMemberId = srcEvent.scenario_member_id !== null ? memberIdMap.get(srcEvent.scenario_member_id) : undefined;
                 if (!newMemberId) continue;
                 const matchingNewEvent = insertedEvents.find(
                   (e: ScenarioMemberEvent) =>

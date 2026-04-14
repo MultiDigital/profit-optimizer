@@ -82,6 +82,7 @@ describe('selectScenarioData', () => {
         cost_percentage: 100,
         contract_start_date: '2024-01-01',
         contract_end_date: null,
+        is_synthetic: false,
         created_at: '2024-01-01T00:00:00Z',
       },
     ];
@@ -137,6 +138,7 @@ describe('selectScenarioData', () => {
         cost_percentage: 100,
         contract_start_date: '2024-01-01',
         contract_end_date: null,
+        is_synthetic: false,
         created_at: '2024-01-01T00:00:00Z',
       },
     ];

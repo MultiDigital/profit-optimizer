@@ -58,9 +58,13 @@ function getMemberId(member: AnyMember): string {
 function getEventsForMember(events: AnyEvent[], member: AnyMember): AnyEvent[] {
   const memberId = getMemberId(member);
   return events.filter((e) => {
-    if ('member_id' in e) return e.member_id === memberId;
-    if ('scenario_member_id' in e) return e.scenario_member_id === memberId;
-    return false;
+    if ('scenario_member_id' in e) {
+      // ScenarioMemberEvent: match via scenario_member_id or member_id depending on which is set
+      const se = e as ScenarioMemberEvent;
+      return se.scenario_member_id === memberId || se.member_id === memberId;
+    }
+    // MemberEvent: match via member_id
+    return e.member_id === memberId;
   });
 }
 
