@@ -40,6 +40,7 @@ interface WorkforceCardProps {
   members: Member[];
   loading?: boolean;
   capacitySettings: CapacitySettings;
+  upcomingCounts: Map<string, number>;
   onAddMember: (input: MemberInput) => Promise<void>;
   onUpdateMember: (id: string, input: Partial<MemberInput>) => Promise<void>;
   onDeleteMember: (id: string) => Promise<void>;
@@ -49,6 +50,7 @@ export function WorkforceCard({
   members,
   loading,
   capacitySettings,
+  upcomingCounts,
   onAddMember,
   onUpdateMember,
   onDeleteMember,
@@ -262,6 +264,7 @@ export function WorkforceCard({
           <MemberList
             members={members}
             capacitySettings={capacitySettings}
+            upcomingCounts={upcomingCounts}
             onUpdate={onUpdateMember}
             onDelete={onDeleteMember}
           />

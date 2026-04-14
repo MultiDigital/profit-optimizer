@@ -42,11 +42,12 @@ import { createColumns } from './columns';
 interface MemberListProps {
   members: Member[];
   capacitySettings: CapacitySettings;
+  upcomingCounts: Map<string, number>;
   onUpdate: (id: string, input: Partial<MemberInput>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
-export function MemberList({ members, capacitySettings, onUpdate, onDelete }: MemberListProps) {
+export function MemberList({ members, capacitySettings, upcomingCounts, onUpdate, onDelete }: MemberListProps) {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [deletingMember, setDeletingMember] = useState<Member | null>(null);
   const [formData, setFormData] = useState<MemberInput>({
@@ -115,8 +116,9 @@ export function MemberList({ members, capacitySettings, onUpdate, onDelete }: Me
         onEdit: setEditingMember,
         onDelete: setDeletingMember,
         capacitySettings,
+        upcomingCounts,
       }),
-    [capacitySettings]
+    [capacitySettings, upcomingCounts]
   );
 
   return (

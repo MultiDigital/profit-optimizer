@@ -18,9 +18,10 @@ interface ColumnActions {
   onEdit: (member: Member) => void;
   onDelete: (member: Member) => void;
   capacitySettings: CapacitySettings;
+  upcomingCounts: Map<string, number>;
 }
 
-export const createColumns = ({ onEdit, onDelete, capacitySettings }: ColumnActions): ColumnDef<Member>[] => [
+export const createColumns = ({ onEdit, onDelete, capacitySettings, upcomingCounts }: ColumnActions): ColumnDef<Member>[] => [
   {
     accessorKey: 'last_name',
     header: 'Last Name',
@@ -103,6 +104,23 @@ export const createColumns = ({ onEdit, onDelete, capacitySettings }: ColumnActi
         {formatCurrency(row.getValue('salary'))}
       </div>
     ),
+  },
+  {
+    id: 'upcoming',
+    header: () => <div className="text-right">Upcoming</div>,
+    cell: ({ row }) => {
+      const count = upcomingCounts.get(row.original.id) ?? 0;
+      if (count === 0) {
+        return <div className="text-right text-muted-foreground">—</div>;
+      }
+      return (
+        <div className="text-right">
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-500/15 text-blue-500 border-blue-500/20">
+            {count} change{count === 1 ? '' : 's'}
+          </Badge>
+        </div>
+      );
+    },
   },
   {
     id: 'actions',
