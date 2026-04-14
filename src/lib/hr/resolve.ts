@@ -37,6 +37,23 @@ export interface AnyResolverEvent {
 }
 
 /**
+ * Comparator: sort events by effective precedence (most-recent-wins).
+ * 1. start_date DESC (more recent first)
+ * 2. priority DESC (scenario before canonical)
+ * 3. id ASC (deterministic tie-break)
+ */
+function compareEventsByPrecedence(a: AnyResolverEvent, b: AnyResolverEvent): number {
+  if (a.start_date !== b.start_date) {
+    return b.start_date.localeCompare(a.start_date);
+  }
+  const rank = (p: AnyResolverEvent['priority']) => (p === 'scenario' ? 1 : 0);
+  if (a.priority !== b.priority) {
+    return rank(b.priority) - rank(a.priority);
+  }
+  return a.id.localeCompare(b.id);
+}
+
+/**
  * Resolve the effective value of a field at a specific date.
  * Returns undefined if no event is active — caller should fall back to
  * the base (initial) value.
@@ -59,20 +76,7 @@ export function resolveFieldAtDate(
   });
   if (active.length === 0) return undefined;
 
-  // Sort: start_date DESC, then priority (scenario before canonical) DESC.
-  // 'scenario' > 'canonical' lexically works in our favor (s > c),
-  // but to be explicit and robust we compare priority numerically.
-  const priorityRank = (p: AnyResolverEvent['priority']) =>
-    p === 'scenario' ? 1 : 0;
-  active.sort((a, b) => {
-    if (a.start_date !== b.start_date) {
-      return b.start_date.localeCompare(a.start_date);
-    }
-    if (a.priority !== b.priority) {
-      return priorityRank(b.priority) - priorityRank(a.priority);
-    }
-    return a.id.localeCompare(b.id);
-  });
+  active.sort(compareEventsByPrecedence);
   return active[0].value;
 }
 
@@ -101,17 +105,7 @@ export function resolveCostCenterAllocationsAtDate(
   });
   if (activeCdcEvents.length === 0) return baseAllocations;
 
-  const priorityRank = (p: AnyResolverEvent['priority']) =>
-    p === 'scenario' ? 1 : 0;
-  activeCdcEvents.sort((a, b) => {
-    if (a.start_date !== b.start_date) {
-      return b.start_date.localeCompare(a.start_date);
-    }
-    if (a.priority !== b.priority) {
-      return priorityRank(b.priority) - priorityRank(a.priority);
-    }
-    return a.id.localeCompare(b.id);
-  });
+  activeCdcEvents.sort(compareEventsByPrecedence);
   const winner = activeCdcEvents[0];
 
   const winnerAllocations = eventAllocations.filter((a) => {

@@ -263,4 +263,133 @@ describe('resolveCostCenterAllocationsAtDate', () => {
     );
     expect(result).toEqual([{ cost_center_id: 'cc-z', percentage: 100 }]);
   });
+
+  it('scenario CDC event wins over canonical CDC event with same start_date', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      canonicalEvent({
+        id: 'evt-can',
+        field: 'cost_center_allocations',
+        start_date: '2026-05-01',
+      }),
+      scenarioEvent({
+        id: 'evt-scen',
+        field: 'cost_center_allocations',
+        start_date: '2026-05-01',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'a-can',
+        member_event_id: 'evt-can',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-canonical',
+        percentage: 100,
+      },
+      {
+        id: 'a-scen',
+        member_event_id: null,
+        scenario_member_event_id: 'evt-scen',
+        cost_center_id: 'cc-scenario',
+        percentage: 100,
+      },
+    ];
+    const result = resolveCostCenterAllocationsAtDate(base, events, eventAllocs, '2026-06-01');
+    expect(result).toEqual([{ cost_center_id: 'cc-scenario', percentage: 100 }]);
+  });
+
+  it('breaks CDC ties by id ascending when start_date and priority equal', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      canonicalEvent({
+        id: 'evt-b',
+        field: 'cost_center_allocations',
+        start_date: '2026-05-01',
+      }),
+      canonicalEvent({
+        id: 'evt-a',
+        field: 'cost_center_allocations',
+        start_date: '2026-05-01',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'a-1',
+        member_event_id: 'evt-a',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-winner-a',
+        percentage: 100,
+      },
+      {
+        id: 'a-2',
+        member_event_id: 'evt-b',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-winner-b',
+        percentage: 100,
+      },
+    ];
+    const result = resolveCostCenterAllocationsAtDate(base, events, eventAllocs, '2026-06-01');
+    expect(result).toEqual([{ cost_center_id: 'cc-winner-a', percentage: 100 }]);
+  });
+
+  it('applies CDC event on exact start_date (inclusive bound)', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      canonicalEvent({
+        id: 'evt-1',
+        field: 'cost_center_allocations',
+        start_date: '2026-06-01',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'a-1',
+        member_event_id: 'evt-1',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-b',
+        percentage: 100,
+      },
+    ];
+    const result = resolveCostCenterAllocationsAtDate(base, events, eventAllocs, '2026-06-01');
+    expect(result).toEqual([{ cost_center_id: 'cc-b', percentage: 100 }]);
+  });
+
+  it('falls back to base when all CDC events have already ended', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      canonicalEvent({
+        id: 'evt-1',
+        field: 'cost_center_allocations',
+        start_date: '2024-01-01',
+        end_date: '2024-12-31',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'a-1',
+        member_event_id: 'evt-1',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-old',
+        percentage: 100,
+      },
+    ];
+    expect(
+      resolveCostCenterAllocationsAtDate(base, events, eventAllocs, '2026-06-01'),
+    ).toEqual(base);
+  });
+
+  it('ignores non-CDC events when resolving allocations', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      canonicalEvent({
+        id: 'evt-sal',
+        field: 'salary',
+        value: '50000',
+        start_date: '2026-05-01',
+      }),
+    ];
+    expect(
+      resolveCostCenterAllocationsAtDate(base, events, [], '2026-06-01'),
+    ).toEqual(base);
+  });
 });
