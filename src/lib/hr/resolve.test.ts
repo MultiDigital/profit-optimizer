@@ -713,3 +713,96 @@ describe('resolveMemberAtYear', () => {
     expect(snaps[6].salary).toBe(40000);
   });
 });
+
+describe('resolver integration', () => {
+  it('models a realistic employee timeline correctly', () => {
+    // Mario: hired 2024-01-15 as Middle @ 42k full-time, CDC A 100%.
+    // 2026-05-01: salary bump to 45k.
+    // 2026-07-01: CDC realloc to A 60 / B 40.
+    // 2027-01-01: promoted to Senior.
+    const mario = makeMember({
+      id: 'mario',
+      seniority: 'middle',
+      salary: 42000,
+      contract_start_date: '2024-01-15',
+    });
+    const baseAllocs: MemberCostCenterAllocation[] = [
+      { id: 'a-1', member_id: 'mario', cost_center_id: 'cc-a', percentage: 100 },
+    ];
+    const events: MemberEvent[] = [
+      makeMemberEvent({
+        member_id: 'mario',
+        field: 'salary',
+        value: '45000',
+        start_date: '2026-05-01',
+      }),
+      makeMemberEvent({
+        id: 'evt-cdc',
+        member_id: 'mario',
+        field: 'cost_center_allocations',
+        value: '',
+        start_date: '2026-07-01',
+      }),
+      makeMemberEvent({
+        member_id: 'mario',
+        field: 'seniority',
+        value: 'senior',
+        start_date: '2027-01-01',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'ea-1',
+        member_event_id: 'evt-cdc',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-a',
+        percentage: 60,
+      },
+      {
+        id: 'ea-2',
+        member_event_id: 'evt-cdc',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-b',
+        percentage: 40,
+      },
+    ];
+
+    // On 2026-01-01 (before any event): initial state.
+    const early = resolveMemberAtDate(mario, baseAllocs, events, [], eventAllocs, '2026-01-01');
+    expect(early.salary).toBe(42000);
+    expect(early.seniority).toBe('middle');
+    expect(early.costCenterAllocations).toEqual([
+      { cost_center_id: 'cc-a', percentage: 100 },
+    ]);
+
+    // On 2026-06-15: salary bumped, CDC not yet changed.
+    const mid = resolveMemberAtDate(mario, baseAllocs, events, [], eventAllocs, '2026-06-15');
+    expect(mid.salary).toBe(45000);
+    expect(mid.seniority).toBe('middle');
+    expect(mid.costCenterAllocations).toEqual([
+      { cost_center_id: 'cc-a', percentage: 100 },
+    ]);
+
+    // On 2026-08-01: salary bumped AND CDC realloc applied, not yet senior.
+    const late = resolveMemberAtDate(mario, baseAllocs, events, [], eventAllocs, '2026-08-01');
+    expect(late.salary).toBe(45000);
+    expect(late.seniority).toBe('middle');
+    expect(late.costCenterAllocations).toEqual([
+      { cost_center_id: 'cc-a', percentage: 60 },
+      { cost_center_id: 'cc-b', percentage: 40 },
+    ]);
+
+    // On 2027-06-01: senior.
+    const senior = resolveMemberAtDate(mario, baseAllocs, events, [], eventAllocs, '2027-06-01');
+    expect(senior.seniority).toBe('senior');
+    expect(senior.salary).toBe(45000);
+
+    // 2026 yearly view: first 4 months initial, month 5 bumped, month 7 CDC realloc.
+    const year2026 = resolveMemberAtYear(mario, baseAllocs, events, [], eventAllocs, 2026);
+    expect(year2026[3].salary).toBe(42000); // Apr
+    expect(year2026[4].salary).toBe(45000); // May
+    expect(year2026[5].costCenterAllocations[0].cost_center_id).toBe('cc-a'); // Jun: still 100% A
+    expect(year2026[5].costCenterAllocations).toHaveLength(1);
+    expect(year2026[6].costCenterAllocations).toHaveLength(2); // Jul: CDC realloc
+  });
+});
