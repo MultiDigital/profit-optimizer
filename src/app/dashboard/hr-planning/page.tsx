@@ -113,6 +113,7 @@ export default function HRPlanningPage() {
     } else {
       if (editingEvent) {
         await updateScenarioEvent(editingEvent.id, {
+          hr_scenario_id: (editingEvent as ScenarioMemberEvent).hr_scenario_id,
           scenario_member_id: input.member_id,
           field: input.field,
           value: input.value,
@@ -126,6 +127,7 @@ export default function HRPlanningPage() {
       } else {
         if (input.field === 'cost_center_allocations' && cdcAllocations) {
           await addScenarioEventWithAllocations({
+            hr_scenario_id: source,
             scenario_member_id: input.member_id,
             field: input.field,
             value: '',
@@ -135,6 +137,7 @@ export default function HRPlanningPage() {
           }, cdcAllocations);
         } else {
           await addScenarioEvent({
+            hr_scenario_id: source,
             scenario_member_id: input.member_id,
             field: input.field,
             value: input.value,

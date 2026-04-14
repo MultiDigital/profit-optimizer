@@ -103,6 +103,7 @@ describe('selectScenarioData (post-delta)', () => {
       {
         id: 'se-canonical',
         user_id: 'u-1',
+        hr_scenario_id: 's-1',
         scenario_member_id: null,
         member_id: 'm-1', // override of canonical m-1
         field: 'salary',
@@ -115,6 +116,7 @@ describe('selectScenarioData (post-delta)', () => {
       {
         id: 'se-synthetic',
         user_id: 'u-1',
+        hr_scenario_id: 's-1',
         scenario_member_id: 'syn-1',
         member_id: null,
         field: 'salary',

@@ -119,40 +119,14 @@ export function useHRScenarios() {
 
       if (membersError) throw membersError;
 
-      const memberIds = (members || []).map((m: HRScenarioMember) => m.id);
+      const { data: eventData, error: eventsError } = await supabase
+        .from('scenario_member_events')
+        .select('*')
+        .eq('hr_scenario_id', scenarioId)
+        .order('start_date', { ascending: true });
 
-      // Fetch events linked to synthetic members (scenario_member_id) AND events
-      // that override canonical members in this scenario (member_id). The latter
-      // cannot be scoped to this scenario server-side today because
-      // scenario_member_events has no hr_scenario_id column yet — we fetch all
-      // canonical-override events the user owns and filter later. PR 5b adds
-      // the column to enable proper server-side scoping.
-      const [syntheticEventsQ, canonicalOverridesQ] = await Promise.all([
-        memberIds.length > 0
-          ? supabase
-              .from('scenario_member_events')
-              .select('*')
-              .in('scenario_member_id', memberIds)
-              .order('start_date', { ascending: true })
-          : Promise.resolve({ data: [] as ScenarioMemberEvent[], error: null }),
-        supabase
-          .from('scenario_member_events')
-          .select('*')
-          .not('member_id', 'is', null)
-          .order('start_date', { ascending: true }),
-      ]);
-
-      if (syntheticEventsQ.error) throw syntheticEventsQ.error;
-      if (canonicalOverridesQ.error) throw canonicalOverridesQ.error;
-
-      // Combine. The PR 5a data migration leaves canonical-override events
-      // unambiguously scoped per user (each copy came from one scenario, so no
-      // cross-scenario mixing exists). PR 5b will author new ones with proper
-      // hr_scenario_id scoping.
-      let events: ScenarioMemberEvent[] = [
-        ...(syntheticEventsQ.data ?? []),
-        ...(canonicalOverridesQ.data ?? []),
-      ];
+      if (eventsError) throw eventsError;
+      const events: ScenarioMemberEvent[] = eventData || [];
 
       // Fetch event CDC allocations
       const cdcEventIds = events
@@ -232,6 +206,7 @@ export function useHRScenarios() {
             .filter((e) => e.scenario_member_id !== null && memberIdMap.has(e.scenario_member_id))
             .map((e) => ({
               user_id: user.id,
+              hr_scenario_id: newScenario.id,
               scenario_member_id: memberIdMap.get(e.scenario_member_id!)!,
               field: e.field,
               value: e.value,
@@ -275,6 +250,29 @@ export function useHRScenarios() {
                 }
               }
             }
+          }
+
+          // Copy canonical-override events: same member_id, new hr_scenario_id
+          const canonicalOverrides = source.events.filter((e: ScenarioMemberEvent) => e.member_id !== null);
+          if (canonicalOverrides.length > 0) {
+            const overrideRows = canonicalOverrides.map((e: ScenarioMemberEvent) => ({
+              user_id: user.id,
+              hr_scenario_id: newScenario.id,
+              member_id: e.member_id,
+              scenario_member_id: null,
+              field: e.field,
+              value: e.value,
+              start_date: e.start_date,
+              end_date: e.end_date,
+              note: e.note,
+            }));
+            const { error: overrideError } = await supabase
+              .from('scenario_member_events')
+              .insert(overrideRows);
+            if (overrideError) throw overrideError;
+            // TODO: CDC sidecar rows for canonical-override events are not duplicated here.
+            // The existing synthetic-event CDC copy logic above handles synthetic events only.
+            // Add analogous logic here once canonical-override CDC events are in use.
           }
         }
       }
@@ -353,7 +351,17 @@ export function useHRScenarios() {
 
       const { data, error } = await supabase
         .from('scenario_member_events')
-        .insert({ user_id: user.id, ...input })
+        .insert({
+          user_id: user.id,
+          hr_scenario_id: input.hr_scenario_id,
+          scenario_member_id: input.scenario_member_id ?? null,
+          member_id: input.member_id ?? null,
+          field: input.field,
+          value: input.value,
+          start_date: input.start_date,
+          end_date: input.end_date ?? null,
+          note: input.note ?? null,
+        })
         .select()
         .single();
 
@@ -378,7 +386,17 @@ export function useHRScenarios() {
 
       const { data, error } = await supabase
         .from('scenario_member_events')
-        .insert({ user_id: user.id, ...input, value: '' })
+        .insert({
+          user_id: user.id,
+          hr_scenario_id: input.hr_scenario_id,
+          scenario_member_id: input.scenario_member_id ?? null,
+          member_id: input.member_id ?? null,
+          field: input.field,
+          value: '',
+          start_date: input.start_date,
+          end_date: input.end_date ?? null,
+          note: input.note ?? null,
+        })
         .select()
         .single();
 

@@ -434,6 +434,7 @@ export interface HRScenarioMemberInput {
 export interface ScenarioMemberEvent {
   id: string;
   user_id: string;
+  hr_scenario_id: string;
   // Exactly one of these two FKs is populated (CHECK constraint enforces it):
   // - `member_id` when the event overrides a canonical employee's timeline.
   // - `scenario_member_id` when the event belongs to a synthetic (scenario-only) employee.
@@ -448,6 +449,7 @@ export interface ScenarioMemberEvent {
 }
 
 export interface ScenarioMemberEventInput {
+  hr_scenario_id: string;
   // Exactly one of these two must be set by the caller.
   scenario_member_id?: string | null;
   member_id?: string | null;

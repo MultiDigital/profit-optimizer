@@ -446,6 +446,7 @@ function makeScenarioEvent(partial: Partial<ScenarioMemberEvent>): ScenarioMembe
   return {
     id: partial.id ?? `se-${_nextScenarioEventId++}`,
     user_id: 'u-1',
+    hr_scenario_id: 'hs-1',
     scenario_member_id: 'm-1',
     member_id: null,  // NEW: default to null (helper pattern maintains scenario_member_id targeting)
     field: 'salary',
@@ -645,6 +646,7 @@ describe('resolveWorkforceAtDate', () => {
       {
         id: 's-1',
         user_id: 'u-1',
+        hr_scenario_id: 'hs-1',
         scenario_member_id: null,
         member_id: 'm-1',
         field: 'salary',
@@ -683,6 +685,7 @@ describe('resolveWorkforceAtDate', () => {
       {
         id: 's-2',
         user_id: 'u-1',
+        hr_scenario_id: 'hs-1',
         scenario_member_id: 'syn-1',
         member_id: null,
         field: 'salary',
@@ -727,6 +730,7 @@ describe('resolveWorkforceAtDate', () => {
       {
         id: 's-3',
         user_id: 'u-1',
+        hr_scenario_id: 'hs-1',
         scenario_member_id: null,
         member_id: 'ambig-1', // targets a canonical with this id — synthetic should be unaffected
         field: 'salary',
