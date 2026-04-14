@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Member,
   MemberInput,
@@ -60,6 +61,8 @@ export function MemberList({ members, capacitySettings, onUpdate, onDelete }: Me
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const router = useRouter();
+
   useEffect(() => {
     if (editingMember) {
       setFormData({
@@ -118,7 +121,11 @@ export function MemberList({ members, capacitySettings, onUpdate, onDelete }: Me
 
   return (
     <>
-      <DataTable columns={columns} data={members} />
+      <DataTable
+        columns={columns}
+        data={members}
+        onRowClick={(m) => router.push(`/dashboard/workforce/${m.id}`)}
+      />
 
       <Dialog open={!!editingMember} onOpenChange={(open) => !open && setEditingMember(null)}>
         <DialogContent className="sm:max-w-md">
