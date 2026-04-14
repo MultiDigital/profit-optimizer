@@ -393,3 +393,164 @@ describe('resolveCostCenterAllocationsAtDate', () => {
     ).toEqual(base);
   });
 });
+
+import { resolveMemberAtDate } from './resolve';
+import { Member, MemberEvent, ScenarioMemberEvent, MemberCostCenterAllocation } from '@/lib/optimizer/types';
+
+function makeMember(overrides: Partial<Member> = {}): Member {
+  return {
+    id: 'm-1',
+    user_id: 'u-1',
+    first_name: 'Mario',
+    last_name: 'Rossi',
+    category: 'dipendente',
+    seniority: 'middle',
+    salary: 42000,
+    chargeable_days: null,
+    ft_percentage: 100,
+    contract_start_date: '2024-01-15',
+    contract_end_date: null,
+    ...overrides,
+  };
+}
+
+let _nextMemberEventId = 0;
+function makeMemberEvent(partial: Partial<MemberEvent>): MemberEvent {
+  return {
+    id: partial.id ?? `me-${_nextMemberEventId++}`,
+    user_id: 'u-1',
+    member_id: 'm-1',
+    field: 'salary',
+    value: '0',
+    start_date: '2024-01-01',
+    end_date: null,
+    note: null,
+    created_at: '2024-01-01T00:00:00Z',
+    ...partial,
+  };
+}
+
+let _nextScenarioEventId = 0;
+function makeScenarioEvent(partial: Partial<ScenarioMemberEvent>): ScenarioMemberEvent {
+  return {
+    id: partial.id ?? `se-${_nextScenarioEventId++}`,
+    user_id: 'u-1',
+    scenario_member_id: 'm-1',
+    field: 'salary',
+    value: '0',
+    start_date: '2024-01-01',
+    end_date: null,
+    note: null,
+    created_at: '2024-01-01T00:00:00Z',
+    ...partial,
+  };
+}
+
+describe('resolveMemberAtDate', () => {
+  it('returns initial state when there are no events', () => {
+    const m = makeMember();
+    const baseAllocs: MemberCostCenterAllocation[] = [
+      { id: 'a-1', member_id: 'm-1', cost_center_id: 'cc-a', percentage: 100 },
+    ];
+    const resolved = resolveMemberAtDate(m, baseAllocs, [], [], [], '2026-06-01');
+    expect(resolved.salary).toBe(42000);
+    expect(resolved.seniority).toBe('middle');
+    expect(resolved.ft_percentage).toBe(100);
+    expect(resolved.capacity_percentage).toBe(100);
+    expect(resolved.category).toBe('dipendente');
+    expect(resolved.costCenterAllocations).toEqual([
+      { cost_center_id: 'cc-a', percentage: 100 },
+    ]);
+    expect(resolved.isActive).toBe(true);
+    expect(resolved.resolvedAt).toBe('2026-06-01');
+  });
+
+  it('applies a canonical salary event', () => {
+    const m = makeMember();
+    const events = [
+      makeMemberEvent({ field: 'salary', value: '48000', start_date: '2025-01-01' }),
+    ];
+    const resolved = resolveMemberAtDate(m, [], events, [], [], '2026-06-01');
+    expect(resolved.salary).toBe(48000);
+  });
+
+  it('parses numeric fields as numbers', () => {
+    const m = makeMember();
+    const events = [
+      makeMemberEvent({ field: 'ft_percentage', value: '80', start_date: '2025-01-01' }),
+      makeMemberEvent({ field: 'capacity_percentage', value: '75', start_date: '2025-01-01' }),
+      makeMemberEvent({ field: 'chargeable_days', value: '180', start_date: '2025-01-01' }),
+    ];
+    const resolved = resolveMemberAtDate(m, [], events, [], [], '2026-06-01');
+    expect(resolved.ft_percentage).toBe(80);
+    expect(resolved.capacity_percentage).toBe(75);
+    expect(resolved.chargeable_days).toBe(180);
+  });
+
+  it('applies enum fields as strings (seniority, category)', () => {
+    const m = makeMember();
+    const events = [
+      makeMemberEvent({ field: 'seniority', value: 'senior', start_date: '2025-01-01' }),
+      makeMemberEvent({ field: 'category', value: 'freelance', start_date: '2025-01-01' }),
+    ];
+    const resolved = resolveMemberAtDate(m, [], events, [], [], '2026-06-01');
+    expect(resolved.seniority).toBe('senior');
+    expect(resolved.category).toBe('freelance');
+  });
+
+  it('scenario event overrides canonical event on same start_date', () => {
+    const m = makeMember();
+    const canonical = [
+      makeMemberEvent({ field: 'salary', value: '48000', start_date: '2025-01-01' }),
+    ];
+    const scenario = [
+      makeScenarioEvent({ field: 'salary', value: '60000', start_date: '2025-01-01' }),
+    ];
+    const resolved = resolveMemberAtDate(m, [], canonical, scenario, [], '2026-06-01');
+    expect(resolved.salary).toBe(60000);
+  });
+
+  it('isActive=false when date is before contract_start', () => {
+    const m = makeMember({ contract_start_date: '2025-01-01' });
+    const resolved = resolveMemberAtDate(m, [], [], [], [], '2024-06-01');
+    expect(resolved.isActive).toBe(false);
+  });
+
+  it('isActive=false when date is after contract_end', () => {
+    const m = makeMember({ contract_start_date: '2024-01-01', contract_end_date: '2025-12-31' });
+    const resolved = resolveMemberAtDate(m, [], [], [], [], '2026-06-01');
+    expect(resolved.isActive).toBe(false);
+  });
+
+  it('uses event-level CDC allocations when a CDC event is active', () => {
+    const m = makeMember();
+    const baseAllocs: MemberCostCenterAllocation[] = [
+      { id: 'a-1', member_id: 'm-1', cost_center_id: 'cc-a', percentage: 100 },
+    ];
+    const event = makeMemberEvent({
+      id: 'evt-cdc',
+      field: 'cost_center_allocations',
+      value: '',
+      start_date: '2026-05-01',
+    });
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'ea-1',
+        member_event_id: 'evt-cdc',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-b',
+        percentage: 100,
+      },
+    ];
+    const resolved = resolveMemberAtDate(m, baseAllocs, [event], [], eventAllocs, '2026-06-01');
+    expect(resolved.costCenterAllocations).toEqual([
+      { cost_center_id: 'cc-b', percentage: 100 },
+    ]);
+  });
+
+  it('ft_percentage defaults to 100 when member.ft_percentage is null', () => {
+    const m = makeMember({ ft_percentage: null });
+    const resolved = resolveMemberAtDate(m, [], [], [], [], '2026-06-01');
+    expect(resolved.ft_percentage).toBe(100);
+  });
+});

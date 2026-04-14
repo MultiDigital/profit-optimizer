@@ -1,5 +1,14 @@
-import { EventCostCenterAllocation, MemberEventField } from '@/lib/optimizer/types';
-import { ResolvedCostCenterAllocation } from './types';
+import {
+  EventCostCenterAllocation,
+  Member,
+  MemberCategory,
+  MemberCostCenterAllocation,
+  MemberEvent,
+  MemberEventField,
+  ScenarioMemberEvent,
+  SeniorityLevel,
+} from '@/lib/optimizer/types';
+import { ResolvedCostCenterAllocation, ResolvedMember } from './types';
 
 /**
  * Returns true if the member is within their contract window at `date`.
@@ -117,4 +126,93 @@ export function resolveCostCenterAllocationsAtDate(
     cost_center_id: a.cost_center_id,
     percentage: a.percentage,
   }));
+}
+
+/**
+ * Resolve an employee's full state at a specific date.
+ *
+ * Inputs:
+ * - `member`: the canonical initial state.
+ * - `baseAllocations`: initial CDC split (from member_cost_center_allocations).
+ *   Only rows for this member should be passed; the caller filters.
+ * - `canonicalEvents`: real planned changes for this member.
+ * - `scenarioEvents`: optional scenario overlay events for this member
+ *   (empty when viewing baseline).
+ * - `eventAllocations`: CDC sidecar rows for any cost_center_allocations
+ *   events among canonical + scenario. The caller passes the full set;
+ *   the resolver filters by event id.
+ * - `date`: the 'YYYY-MM-DD' date to resolve at.
+ */
+export function resolveMemberAtDate(
+  member: Member,
+  baseAllocations: MemberCostCenterAllocation[],
+  canonicalEvents: MemberEvent[],
+  scenarioEvents: ScenarioMemberEvent[],
+  eventAllocations: EventCostCenterAllocation[],
+  date: string,
+): ResolvedMember {
+  const all: AnyResolverEvent[] = [
+    ...canonicalEvents.map((e) => ({
+      id: e.id,
+      field: e.field,
+      value: e.value,
+      start_date: e.start_date,
+      end_date: e.end_date,
+      priority: 'canonical' as const,
+    })),
+    ...scenarioEvents.map((e) => ({
+      id: e.id,
+      field: e.field,
+      value: e.value,
+      start_date: e.start_date,
+      end_date: e.end_date,
+      priority: 'scenario' as const,
+    })),
+  ];
+
+  const salaryRaw = resolveFieldAtDate(all, 'salary', date);
+  const ftRaw = resolveFieldAtDate(all, 'ft_percentage', date);
+  const seniorityRaw = resolveFieldAtDate(all, 'seniority', date);
+  const categoryRaw = resolveFieldAtDate(all, 'category', date);
+  const capacityRaw = resolveFieldAtDate(all, 'capacity_percentage', date);
+  const chargeableRaw = resolveFieldAtDate(all, 'chargeable_days', date);
+
+  const baseForMember = baseAllocations
+    .filter((a) => a.member_id === member.id)
+    .map((a) => ({ cost_center_id: a.cost_center_id, percentage: a.percentage }));
+
+  const resolvedAllocations = resolveCostCenterAllocationsAtDate(
+    baseForMember,
+    all,
+    eventAllocations,
+    date,
+  );
+
+  return {
+    id: member.id,
+    first_name: member.first_name,
+    last_name: member.last_name,
+    contract_start_date: member.contract_start_date,
+    contract_end_date: member.contract_end_date,
+
+    category: (categoryRaw as MemberCategory | undefined) ?? member.category,
+    seniority: (seniorityRaw as SeniorityLevel | undefined) ?? member.seniority,
+    salary: salaryRaw !== undefined ? parseFloat(salaryRaw) : member.salary,
+    ft_percentage:
+      ftRaw !== undefined ? parseFloat(ftRaw) : (member.ft_percentage ?? 100),
+    capacity_percentage:
+      capacityRaw !== undefined ? parseFloat(capacityRaw) : 100,
+    chargeable_days:
+      chargeableRaw !== undefined
+        ? parseFloat(chargeableRaw)
+        : (member.chargeable_days ?? null),
+
+    costCenterAllocations: resolvedAllocations,
+    isActive: isMemberActiveAtDate(
+      member.contract_start_date,
+      member.contract_end_date,
+      date,
+    ),
+    resolvedAt: date,
+  };
 }
