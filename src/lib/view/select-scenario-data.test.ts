@@ -115,8 +115,59 @@ describe('selectScenarioData', () => {
     expect(result.members).toBe(scenarioMembers);
     expect(result.events).toBe(scenarioEvents);
     expect(result.eventAllocations).toBe(scenarioEventAllocations);
-    // baseAllocations remain the catalog's — scenarios don't override the initial CDC table today
-    expect(result.baseAllocations).toBe(baseAllocations);
+    // The scenario member has source_member_id: null, so remapping yields no matches
+    expect(result.baseAllocations).toEqual([]);
+  });
+
+  it('remaps baseAllocations to scenario member IDs when scenario is active', () => {
+    const scenarioMembers: HRScenarioMember[] = [
+      {
+        id: 'sm-1',
+        user_id: 'u-1',
+        hr_scenario_id: 's-1',
+        source_member_id: 'm-1', // copy of canonical m-1
+        first_name: 'Alice',
+        last_name: 'A',
+        category: 'dipendente',
+        seniority: 'middle',
+        salary: 40000,
+        ft_percentage: 100,
+        chargeable_days: null,
+        capacity_percentage: 100,
+        cost_percentage: 100,
+        contract_start_date: '2024-01-01',
+        contract_end_date: null,
+        created_at: '2024-01-01T00:00:00Z',
+      },
+    ];
+    const scenarios: HRScenario[] = [
+      {
+        id: 's-1',
+        user_id: 'u-1',
+        name: 'Alt',
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      },
+    ];
+    const result = selectScenarioData({
+      scenarioId: 's-1',
+      catalogMembers,
+      catalogEvents,
+      catalogEventAllocations,
+      baseAllocations, // has { member_id: 'm-1', cost_center_id: 'cc-a', percentage: 100 }
+      scenarioData: {
+        scenario: scenarios[0],
+        members: scenarioMembers,
+        events: [],
+        eventAllocations: [],
+      },
+      scenarios,
+    });
+    expect(result.source).toBe('scenario');
+    expect(result.baseAllocations).toHaveLength(1);
+    expect(result.baseAllocations[0].member_id).toBe('sm-1'); // remapped from 'm-1'
+    expect(result.baseAllocations[0].cost_center_id).toBe('cc-a');
+    expect(result.baseAllocations[0].percentage).toBe(100);
   });
 
   it('returns baseline bundle while scenarioData is still loading (scenarios list has the id but data not yet fetched)', () => {

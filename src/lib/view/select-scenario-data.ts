@@ -40,9 +40,10 @@ export interface SelectScenarioDataInput {
  *   (prevents empty flash; ScenarioSourcePicker will auto-reset to baseline too)
  * - scenarioId matches AND scenarioData is ready → scenario bundle
  *
- * Note: today's scenarios still use full-copy semantics for members;
- * `baseAllocations` always come from the catalog (scenarios don't copy
- * the member_cost_center_allocations table). PR 5 will refactor this.
+ * Note: when returning a scenario bundle, catalog `baseAllocations` are remapped
+ * so their `member_id` points to scenario-member IDs via `source_member_id`.
+ * Without this remapping the resolver's filter would return nothing for every
+ * scenario member. PR 5's delta overlay refactor will eliminate this step.
  */
 export function selectScenarioData(input: SelectScenarioDataInput): ResolvedScenarioBundle {
   const {
@@ -68,6 +69,26 @@ export function selectScenarioData(input: SelectScenarioDataInput): ResolvedScen
     return baselineBundle();
   }
 
+  // Before returning the scenario bundle, translate catalog baseAllocations
+  // so their member_id points to scenario-member IDs. Today's scenarios are
+  // full-copies of canonical members, carrying a source_member_id back-reference.
+  // Without this, the resolver filters `baseAllocations.filter(a => a.member_id === m.id)`
+  // would return nothing for every scenario member.
+  // PR 5's delta overlay refactor will eliminate this remapping.
+  const sourceToScenarioId = new Map<string, string>();
+  for (const sm of scenarioData.members) {
+    if (sm.source_member_id) {
+      sourceToScenarioId.set(sm.source_member_id, sm.id);
+    }
+  }
+  const remappedBaseAllocations: MemberCostCenterAllocation[] = baseAllocations
+    .map((a) => {
+      const scenarioMemberId = sourceToScenarioId.get(a.member_id);
+      if (!scenarioMemberId) return null;
+      return { ...a, member_id: scenarioMemberId };
+    })
+    .filter((a): a is MemberCostCenterAllocation => a !== null);
+
   return {
     source: 'scenario',
     scenarioId,
@@ -75,7 +96,7 @@ export function selectScenarioData(input: SelectScenarioDataInput): ResolvedScen
     members: scenarioData.members,
     events: scenarioData.events,
     eventAllocations: scenarioData.eventAllocations,
-    baseAllocations, // unchanged — see comment above
+    baseAllocations: remappedBaseAllocations,
   };
 
   function baselineBundle(): ResolvedScenarioBundle {
