@@ -2,17 +2,20 @@
 
 import { useState, useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { useMembers, useCostCenters, useSettings } from '@/hooks';
+import { useCostCenters, useSettings } from '@/hooks';
 import { AllocationMatrix, CostCenterDialog } from '@/components/cost-centers';
+import { useViewContext } from '@/contexts/ViewContext';
+import { useResolvedScenario } from '@/hooks/useResolvedScenario';
+import { resolveWorkforceAtDate } from '@/lib/hr/resolve';
+import type { ResolvedMember } from '@/lib/hr/types';
 import {
   CostCenter,
   DEFAULT_SETTINGS,
   Member,
-  MemberCostCenterAllocation,
-  SeniorityLevel,
   SENIORITY_LEVELS,
   SENIORITY_LABELS,
   MEMBER_CATEGORY_LABELS,
+  SeniorityLevel,
   computeEffectiveDays,
 } from '@/lib/optimizer/types';
 import {
@@ -67,27 +70,21 @@ interface CostCenterSummary {
 }
 
 function computeCostSummary(
-  members: Member[],
+  resolvedMembers: ResolvedMember[],
   costCenters: CostCenter[],
-  allocations: MemberCostCenterAllocation[],
   effectiveDays: number,
-  yearlyWorkableDays: number
+  yearlyWorkableDays: number,
 ): CostCenterSummary[] {
-  const allocMap = new Map<string, Map<string, number>>();
-  for (const a of allocations) {
-    if (!allocMap.has(a.member_id)) allocMap.set(a.member_id, new Map());
-    allocMap.get(a.member_id)!.set(a.cost_center_id, a.percentage);
-  }
-
   const groups: CostCenterSummary[] = [];
 
   for (const cc of costCenters) {
     const rowMap = new Map<string, CostRow>();
 
-    for (const m of members) {
-      const allocPct = allocMap.get(m.id)?.get(cc.id) ?? 0;
-      if (allocPct === 0) continue;
-      const allocFraction = allocPct / 100;
+    for (const m of resolvedMembers) {
+      if (!m.isActive) continue;
+      const alloc = m.costCenterAllocations.find((a) => a.cost_center_id === cc.id);
+      if (!alloc || alloc.percentage === 0) continue;
+      const allocFraction = alloc.percentage / 100;
 
       let label: string;
       let memberFte: number;
@@ -113,7 +110,6 @@ function computeCostSummary(
       rowMap.set(label, existing);
     }
 
-    // Sort: seniority levels first (in order), then Segnalatore
     const seniorityOrder = SENIORITY_LEVELS.map((s) => SENIORITY_LABELS[s]);
     const rows = Array.from(rowMap.values()).sort((a, b) => {
       const ai = seniorityOrder.indexOf(a.label);
@@ -137,23 +133,22 @@ function computeCostSummary(
 // --- Page component ---
 
 export default function CostCentersPage() {
-  const { members, loading: membersLoading } = useMembers();
+  const { year } = useViewContext();
+  const { bundle, loading: scenarioLoading } = useResolvedScenario();
   const { settings } = useSettings();
   const {
     costCenters,
-    allocations,
     loading: ccLoading,
     addCostCenter,
     updateCostCenter,
     deleteCostCenter,
-    setAllocation,
   } = useCostCenters();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingCc, setEditingCc] = useState<CostCenter | null>(null);
   const [deletingCc, setDeletingCc] = useState<CostCenter | null>(null);
 
-  const loading = membersLoading || ccLoading;
+  const loading = scenarioLoading || ccLoading;
 
   const s = settings ?? DEFAULT_SETTINGS;
   const effectiveDays = computeEffectiveDays(
@@ -161,12 +156,46 @@ export default function CostCentersPage() {
     s.festivita_nazionali,
     s.ferie,
     s.malattia,
-    s.formazione
+    s.formazione,
   );
 
+  // Resolve workforce at mid-year of the selected year.
+  const resolved = useMemo(() => {
+    const anchorDate = `${year}-06-01`;
+    // bundle.members is Member[] when baseline, HRScenarioMember[] when scenario.
+    // HRScenarioMember is structurally compatible with Member for the resolver
+    // (shares all required fields); cast to satisfy the resolver signature.
+    // bundle.events is MemberEvent[] when baseline, ScenarioMemberEvent[] when scenario.
+    // ScenarioMemberEvent uses scenario_member_id instead of member_id; casting to
+    // MemberEvent[] is safe here because the resolver filters by member_id — scenario
+    // events won't match any canonical member IDs, so they're effectively ignored.
+    // PR 5 will introduce proper scenario-event routing through the resolver.
+    return resolveWorkforceAtDate(
+      bundle.members as Member[],
+      bundle.baseAllocations,
+      bundle.events as import('@/lib/optimizer/types').MemberEvent[],
+      [],
+      bundle.eventAllocations,
+      anchorDate,
+    );
+  }, [bundle, year]);
+
+  const resolvedByMember = useMemo(() => {
+    const map = new Map<string, ResolvedMember>();
+    for (const m of resolved) map.set(m.id, m);
+    return map;
+  }, [resolved]);
+
+  const resolveCellPercentage = (memberId: string, costCenterId: string): number => {
+    const m = resolvedByMember.get(memberId);
+    if (!m) return 0;
+    const alloc = m.costCenterAllocations.find((a) => a.cost_center_id === costCenterId);
+    return alloc?.percentage ?? 0;
+  };
+
   const summaryGroups = useMemo(
-    () => computeCostSummary(members, costCenters, allocations, effectiveDays, s.yearly_workable_days),
-    [members, costCenters, allocations, effectiveDays, s.yearly_workable_days]
+    () => computeCostSummary(resolved, costCenters, effectiveDays, s.yearly_workable_days),
+    [resolved, costCenters, effectiveDays, s.yearly_workable_days],
   );
 
   const grandTotal = useMemo(
@@ -174,7 +203,7 @@ export default function CostCentersPage() {
       fte: summaryGroups.reduce((s, g) => s + g.totalFte, 0),
       totalCost: summaryGroups.reduce((s, g) => s + g.totalCost, 0),
     }),
-    [summaryGroups]
+    [summaryGroups],
   );
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -205,6 +234,11 @@ export default function CostCentersPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 Cost Centers
+                {bundle.source === 'scenario' && bundle.scenarioName && (
+                  <Badge variant="outline" className="text-[10px]">
+                    scenario: {bundle.scenarioName}
+                  </Badge>
+                )}
               </CardTitle>
               <Button size="sm" onClick={() => setCreateOpen(true)}>
                 + Add Cost Center
@@ -252,9 +286,9 @@ export default function CostCentersPage() {
                   )}
 
                   <AllocationMatrix
-                    members={members}
+                    members={bundle.members as Member[]}
                     costCenters={costCenters}
-                    allocations={allocations}
+                    allocations={bundle.baseAllocations}
                     capacitySettings={{
                       yearly_workable_days: settings?.yearly_workable_days ?? DEFAULT_SETTINGS.yearly_workable_days,
                       festivita_nazionali: settings?.festivita_nazionali ?? DEFAULT_SETTINGS.festivita_nazionali,
@@ -262,7 +296,8 @@ export default function CostCentersPage() {
                       malattia: settings?.malattia ?? DEFAULT_SETTINGS.malattia,
                       formazione: settings?.formazione ?? DEFAULT_SETTINGS.formazione,
                     }}
-                    onSetAllocation={setAllocation}
+                    readOnly
+                    resolveCellPercentage={resolveCellPercentage}
                   />
                 </TabsContent>
 
@@ -395,7 +430,7 @@ function CostCenterSummarySection({
               {group.totalCost > 0
                 ? `${((row.totalCost / group.totalCost) * 100).toFixed(1)}%`
                 : '-'}
-            </TableCell>
+              </TableCell>
           </TableRow>
         ))}
     </>
