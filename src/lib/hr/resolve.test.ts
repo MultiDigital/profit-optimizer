@@ -4,6 +4,7 @@ import {
   resolveFieldAtDate,
   resolveCostCenterAllocationsAtDate,
   resolveMemberAtDate,
+  resolveWorkforceAtDate,
   AnyResolverEvent,
 } from './resolve';
 import {
@@ -561,5 +562,76 @@ describe('resolveMemberAtDate', () => {
     const m = makeMember({ ft_percentage: null });
     const resolved = resolveMemberAtDate(m, [], [], [], [], '2026-06-01');
     expect(resolved.ft_percentage).toBe(100);
+  });
+});
+
+describe('resolveWorkforceAtDate', () => {
+  it('resolves each member independently with their own events and allocations', () => {
+    const m1 = makeMember({ id: 'm-1', first_name: 'Alice', salary: 40000 });
+    const m2 = makeMember({ id: 'm-2', first_name: 'Bob', salary: 50000 });
+
+    const baseAllocs: MemberCostCenterAllocation[] = [
+      { id: 'a-1', member_id: 'm-1', cost_center_id: 'cc-a', percentage: 100 },
+      { id: 'a-2', member_id: 'm-2', cost_center_id: 'cc-b', percentage: 100 },
+    ];
+
+    const canonicalEvents: MemberEvent[] = [
+      makeMemberEvent({
+        member_id: 'm-1',
+        field: 'salary',
+        value: '45000',
+        start_date: '2025-01-01',
+      }),
+    ];
+
+    const resolved = resolveWorkforceAtDate(
+      [m1, m2],
+      baseAllocs,
+      canonicalEvents,
+      [],
+      [],
+      '2026-06-01',
+    );
+
+    expect(resolved).toHaveLength(2);
+    const aliceRes = resolved.find((r) => r.id === 'm-1')!;
+    const bobRes = resolved.find((r) => r.id === 'm-2')!;
+
+    expect(aliceRes.salary).toBe(45000);
+    expect(aliceRes.costCenterAllocations).toEqual([
+      { cost_center_id: 'cc-a', percentage: 100 },
+    ]);
+
+    expect(bobRes.salary).toBe(50000);
+    expect(bobRes.costCenterAllocations).toEqual([
+      { cost_center_id: 'cc-b', percentage: 100 },
+    ]);
+  });
+
+  it('returns an empty array for empty members input', () => {
+    expect(resolveWorkforceAtDate([], [], [], [], [], '2026-06-01')).toEqual([]);
+  });
+
+  it('correctly scopes scenario events to their target member', () => {
+    const m1 = makeMember({ id: 'm-1', salary: 40000 });
+    const m2 = makeMember({ id: 'm-2', salary: 50000 });
+    const scenarioEvents: ScenarioMemberEvent[] = [
+      makeScenarioEvent({
+        scenario_member_id: 'm-1',
+        field: 'salary',
+        value: '99999',
+        start_date: '2025-01-01',
+      }),
+    ];
+    const resolved = resolveWorkforceAtDate(
+      [m1, m2],
+      [],
+      [],
+      scenarioEvents,
+      [],
+      '2026-06-01',
+    );
+    expect(resolved.find((r) => r.id === 'm-1')!.salary).toBe(99999);
+    expect(resolved.find((r) => r.id === 'm-2')!.salary).toBe(50000);
   });
 });

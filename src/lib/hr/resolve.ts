@@ -240,3 +240,35 @@ export function resolveMemberAtDate(
     resolvedAt: date,
   };
 }
+
+/**
+ * Batch resolve a full workforce at a date.
+ *
+ * Filters events per-member internally:
+ * - canonicalEvents filtered by member_id === member.id
+ * - scenarioEvents filtered by scenario_member_id === member.id
+ *   (in PR 5 this changes to support scenario events referencing
+ *   canonical members via member_id; until then, only synthetic
+ *   members consume scenarioEvents via this path.)
+ */
+export function resolveWorkforceAtDate(
+  members: Member[],
+  baseAllocations: MemberCostCenterAllocation[],
+  canonicalEvents: MemberEvent[],
+  scenarioEvents: ScenarioMemberEvent[],
+  eventAllocations: EventCostCenterAllocation[],
+  date: string,
+): ResolvedMember[] {
+  return members.map((m) => {
+    const mCanonical = canonicalEvents.filter((e) => e.member_id === m.id);
+    const mScenario = scenarioEvents.filter((e) => e.scenario_member_id === m.id);
+    return resolveMemberAtDate(
+      m,
+      baseAllocations,
+      mCanonical,
+      mScenario,
+      eventAllocations,
+      date,
+    );
+  });
+}
