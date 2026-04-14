@@ -224,6 +224,13 @@ export default function HRPlanningPage() {
         </TabsList>
 
         <TabsContent value="planning" className="space-y-6">
+          {/* Scenario limitation notice */}
+          {source !== 'baseline' && bundle.syntheticMembers.length === 0 && (
+            <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+              This scenario has no synthetic members yet. Canonical-member overrides in scenarios will be authored from the employee page (coming in a later PR). For now, add a what-if hire by using the HR Scenario management elsewhere.
+            </div>
+          )}
+
           {/* Event management */}
           <Card>
             <CardHeader>
@@ -295,7 +302,7 @@ export default function HRPlanningPage() {
       <HREventDialog
         open={eventDialogOpen}
         onOpenChange={setEventDialogOpen}
-        members={activeMembers}
+        members={source === 'baseline' ? activeMembers : bundle.syntheticMembers}
         onSave={handleSaveEvent}
         costCenters={costCenters}
         editingEventAllocations={
