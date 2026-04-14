@@ -21,6 +21,10 @@ const HIDE_CONTROLS_ON: readonly string[] = [
   '/dashboard/services',
   '/dashboard/workforce',
   'prefix:/dashboard/workforce/',
+  // Optimizer scenario pages pin their own target_year + hr_scenario_id at
+  // scenario creation time (see spec § "/scenarios/[id] (optimizer)"), so
+  // the global pickers would mislead users.
+  'prefix:/dashboard/scenarios/',
 ];
 
 function shouldHideControls(pathname: string): boolean {
