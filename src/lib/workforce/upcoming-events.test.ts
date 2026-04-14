@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { countUpcomingEventsByMember } from './upcoming-events';
 import { MemberEvent } from '@/lib/optimizer/types';
 
+let _nextEventId = 0;
 function makeEvent(partial: Partial<MemberEvent> = {}): MemberEvent {
   return {
-    id: partial.id ?? `e-${Math.random().toString(36).slice(2)}`,
+    id: partial.id ?? `e-${_nextEventId++}`,
     user_id: 'u-1',
     member_id: partial.member_id ?? 'm-1',
     field: 'salary',
