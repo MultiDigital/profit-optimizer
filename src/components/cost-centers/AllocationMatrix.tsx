@@ -77,13 +77,20 @@ export function AllocationMatrix({
     return costCenters.reduce((sum, cc) => sum + resolveCellPercentage(memberId, cc.id), 0);
   }
 
+  const getCellPercentage = useCallback(
+    (memberId: string, costCenterId: string): number => {
+      return resolveCellPercentage?.(memberId, costCenterId) ?? getAllocation(memberId, costCenterId);
+    },
+    [resolveCellPercentage, getAllocation]
+  );
+
   const getCostCenterTotals = useCallback(
     (costCenterId: string) => {
       let totalDays = 0;
       let totalCost = 0;
 
       for (const member of members) {
-        const pct = getAllocation(member.id, costCenterId);
+        const pct = getCellPercentage(member.id, costCenterId);
         if (pct > 0) {
           const annualCost = member.salary * (pct / 100);
           if (member.category !== 'segnalatore') {
@@ -99,7 +106,7 @@ export function AllocationMatrix({
 
       return { totalDays, totalCost };
     },
-    [members, getAllocation]
+    [members, getCellPercentage]
   );
 
   const cellKey = (memberId: string, ccId: string) => `${memberId}-${ccId}`;
@@ -187,9 +194,7 @@ export function AllocationMatrix({
                 </TableCell>
                 {costCenters.map((cc) => {
                   const key = cellKey(member.id, cc.id);
-                  const pct = resolveCellPercentage
-                    ? resolveCellPercentage(member.id, cc.id)
-                    : getAllocation(member.id, cc.id);
+                  const pct = getCellPercentage(member.id, cc.id);
                   const isEditing = !isReadOnly && editingCell === key;
 
                   return (
