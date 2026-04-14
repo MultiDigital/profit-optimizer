@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isMemberActiveAtDate, resolveFieldAtDate, AnyResolverEvent } from './resolve';
+import { isMemberActiveAtDate, resolveFieldAtDate, AnyResolverEvent, resolveCostCenterAllocationsAtDate } from './resolve';
+import { EventCostCenterAllocation } from '@/lib/optimizer/types';
 
 describe('isMemberActiveAtDate', () => {
   it('returns true when date is after contract_start and end is null', () => {
@@ -124,5 +125,142 @@ describe('resolveFieldAtDate', () => {
       canonicalEvent({ id: 'evt-a', field: 'salary', value: '48000', start_date: '2025-01-01' }),
     ];
     expect(resolveFieldAtDate(events, 'salary', '2026-06-01')).toBe('48000');
+  });
+});
+
+describe('resolveCostCenterAllocationsAtDate', () => {
+  it('returns base allocations when no CDC events are active', () => {
+    const base = [
+      { cost_center_id: 'cc-a', percentage: 60 },
+      { cost_center_id: 'cc-b', percentage: 40 },
+    ];
+    const result = resolveCostCenterAllocationsAtDate(base, [], [], '2026-06-01');
+    expect(result).toEqual(base);
+  });
+
+  it('returns base allocations when all CDC events are in the future', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      canonicalEvent({
+        id: 'evt-1',
+        field: 'cost_center_allocations',
+        start_date: '2027-01-01',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'a-1',
+        member_event_id: 'evt-1',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-b',
+        percentage: 100,
+      },
+    ];
+    expect(
+      resolveCostCenterAllocationsAtDate(base, events, eventAllocs, '2026-06-01'),
+    ).toEqual(base);
+  });
+
+  it('applies the most recent active CDC event (overrides base)', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      canonicalEvent({
+        id: 'evt-1',
+        field: 'cost_center_allocations',
+        start_date: '2026-05-01',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'a-1',
+        member_event_id: 'evt-1',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-b',
+        percentage: 70,
+      },
+      {
+        id: 'a-2',
+        member_event_id: 'evt-1',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-c',
+        percentage: 30,
+      },
+    ];
+    const result = resolveCostCenterAllocationsAtDate(
+      base,
+      events,
+      eventAllocs,
+      '2026-06-01',
+    );
+    expect(result).toEqual([
+      { cost_center_id: 'cc-b', percentage: 70 },
+      { cost_center_id: 'cc-c', percentage: 30 },
+    ]);
+  });
+
+  it('picks allocations from the most recent event when multiple active', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      canonicalEvent({
+        id: 'evt-old',
+        field: 'cost_center_allocations',
+        start_date: '2026-01-01',
+      }),
+      canonicalEvent({
+        id: 'evt-new',
+        field: 'cost_center_allocations',
+        start_date: '2026-05-01',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'a-1',
+        member_event_id: 'evt-old',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-b',
+        percentage: 100,
+      },
+      {
+        id: 'a-2',
+        member_event_id: 'evt-new',
+        scenario_member_event_id: null,
+        cost_center_id: 'cc-c',
+        percentage: 100,
+      },
+    ];
+    const result = resolveCostCenterAllocationsAtDate(
+      base,
+      events,
+      eventAllocs,
+      '2026-06-01',
+    );
+    expect(result).toEqual([{ cost_center_id: 'cc-c', percentage: 100 }]);
+  });
+
+  it('resolves scenario event allocations via scenario_member_event_id', () => {
+    const base = [{ cost_center_id: 'cc-a', percentage: 100 }];
+    const events: AnyResolverEvent[] = [
+      scenarioEvent({
+        id: 'sevt-1',
+        field: 'cost_center_allocations',
+        start_date: '2026-05-01',
+      }),
+    ];
+    const eventAllocs: EventCostCenterAllocation[] = [
+      {
+        id: 'a-1',
+        member_event_id: null,
+        scenario_member_event_id: 'sevt-1',
+        cost_center_id: 'cc-z',
+        percentage: 100,
+      },
+    ];
+    const result = resolveCostCenterAllocationsAtDate(
+      base,
+      events,
+      eventAllocs,
+      '2026-06-01',
+    );
+    expect(result).toEqual([{ cost_center_id: 'cc-z', percentage: 100 }]);
   });
 });

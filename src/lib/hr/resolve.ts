@@ -1,4 +1,5 @@
-import { MemberEventField } from '@/lib/optimizer/types';
+import { EventCostCenterAllocation, MemberEventField } from '@/lib/optimizer/types';
+import { ResolvedCostCenterAllocation } from './types';
 
 /**
  * Returns true if the member is within their contract window at `date`.
@@ -73,4 +74,53 @@ export function resolveFieldAtDate(
     return a.id.localeCompare(b.id);
   });
   return active[0].value;
+}
+
+/**
+ * Resolve cost center allocations at a date.
+ *
+ * Behavior:
+ * - If no `cost_center_allocations` event is active, return base allocations.
+ * - Otherwise, the most recent active CDC event's allocations completely
+ *   replace the base (CDC events are total, not additive).
+ * - Scenario tie-break applies, same as resolveFieldAtDate.
+ * - On further ties (equal start_date and priority), smaller event id wins
+ *   for determinism.
+ */
+export function resolveCostCenterAllocationsAtDate(
+  baseAllocations: ResolvedCostCenterAllocation[],
+  events: AnyResolverEvent[],
+  eventAllocations: EventCostCenterAllocation[],
+  date: string,
+): ResolvedCostCenterAllocation[] {
+  const activeCdcEvents = events.filter((e) => {
+    if (e.field !== 'cost_center_allocations') return false;
+    if (e.start_date > date) return false;
+    if (e.end_date !== null && e.end_date < date) return false;
+    return true;
+  });
+  if (activeCdcEvents.length === 0) return baseAllocations;
+
+  const priorityRank = (p: AnyResolverEvent['priority']) =>
+    p === 'scenario' ? 1 : 0;
+  activeCdcEvents.sort((a, b) => {
+    if (a.start_date !== b.start_date) {
+      return b.start_date.localeCompare(a.start_date);
+    }
+    if (a.priority !== b.priority) {
+      return priorityRank(b.priority) - priorityRank(a.priority);
+    }
+    return a.id.localeCompare(b.id);
+  });
+  const winner = activeCdcEvents[0];
+
+  const winnerAllocations = eventAllocations.filter((a) => {
+    if (winner.priority === 'canonical') return a.member_event_id === winner.id;
+    return a.scenario_member_event_id === winner.id;
+  });
+
+  return winnerAllocations.map((a) => ({
+    cost_center_id: a.cost_center_id,
+    percentage: a.percentage,
+  }));
 }
