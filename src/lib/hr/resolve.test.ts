@@ -447,6 +447,7 @@ function makeScenarioEvent(partial: Partial<ScenarioMemberEvent>): ScenarioMembe
     id: partial.id ?? `se-${_nextScenarioEventId++}`,
     user_id: 'u-1',
     scenario_member_id: 'm-1',
+    member_id: null,  // NEW: default to null (helper pattern maintains scenario_member_id targeting)
     field: 'salary',
     value: '0',
     start_date: '2024-01-01',
@@ -618,7 +619,8 @@ describe('resolveWorkforceAtDate', () => {
     const m2 = makeMember({ id: 'm-2', salary: 50000 });
     const scenarioEvents: ScenarioMemberEvent[] = [
       makeScenarioEvent({
-        scenario_member_id: 'm-1',
+        scenario_member_id: null,
+        member_id: 'm-1', // canonical member targeted via member_id
         field: 'salary',
         value: '99999',
         start_date: '2025-01-01',
@@ -634,6 +636,116 @@ describe('resolveWorkforceAtDate', () => {
     );
     expect(resolved.find((r) => r.id === 'm-1')!.salary).toBe(99999);
     expect(resolved.find((r) => r.id === 'm-2')!.salary).toBe(50000);
+  });
+
+  it('applies scenario event with member_id to matching canonical member', () => {
+    const m = makeMember({ id: 'm-1', salary: 40000 });
+    // New-model scenario event: targets canonical member via member_id.
+    const scenarioEvents: ScenarioMemberEvent[] = [
+      {
+        id: 's-1',
+        user_id: 'u-1',
+        scenario_member_id: null,
+        member_id: 'm-1',
+        field: 'salary',
+        value: '99999',
+        start_date: '2025-01-01',
+        end_date: null,
+        note: null,
+        created_at: '2025-01-01T00:00:00Z',
+      },
+    ];
+    const resolved = resolveWorkforceAtDate([m], [], [], scenarioEvents, [], '2026-06-01');
+    expect(resolved[0].salary).toBe(99999);
+  });
+
+  it('applies scenario event with scenario_member_id to matching synthetic member', () => {
+    // Synthetic member — shape compatible with Member for the resolver.
+    const synth: unknown = {
+      id: 'syn-1',
+      user_id: 'u-1',
+      hr_scenario_id: 's-1', // presence of this key marks it as synthetic
+      first_name: 'What-If',
+      last_name: 'Hire',
+      category: 'dipendente',
+      seniority: 'senior',
+      salary: 80000,
+      ft_percentage: 100,
+      chargeable_days: null,
+      capacity_percentage: 100,
+      cost_percentage: 100,
+      contract_start_date: '2024-01-01',
+      contract_end_date: null,
+      is_synthetic: true,
+      created_at: '2024-01-01T00:00:00Z',
+    };
+    const scenarioEvents: ScenarioMemberEvent[] = [
+      {
+        id: 's-2',
+        user_id: 'u-1',
+        scenario_member_id: 'syn-1',
+        member_id: null,
+        field: 'salary',
+        value: '100000',
+        start_date: '2025-01-01',
+        end_date: null,
+        note: null,
+        created_at: '2025-01-01T00:00:00Z',
+      },
+    ];
+    const resolved = resolveWorkforceAtDate(
+      [synth as Parameters<typeof resolveWorkforceAtDate>[0][number]],
+      [],
+      [],
+      scenarioEvents,
+      [],
+      '2026-06-01',
+    );
+    expect(resolved[0].salary).toBe(100000);
+  });
+
+  it('does not apply scenario event with member_id to synthetic member with same id (disambiguates by discriminator)', () => {
+    const synth: unknown = {
+      id: 'ambig-1', // deliberate collision
+      user_id: 'u-1',
+      hr_scenario_id: 's-1',
+      first_name: 'X',
+      last_name: 'Y',
+      category: 'dipendente',
+      seniority: 'middle',
+      salary: 50000,
+      ft_percentage: 100,
+      chargeable_days: null,
+      capacity_percentage: 100,
+      cost_percentage: 100,
+      contract_start_date: '2024-01-01',
+      contract_end_date: null,
+      is_synthetic: true,
+      created_at: '2024-01-01T00:00:00Z',
+    };
+    const scenarioEvents: ScenarioMemberEvent[] = [
+      {
+        id: 's-3',
+        user_id: 'u-1',
+        scenario_member_id: null,
+        member_id: 'ambig-1', // targets a canonical with this id — synthetic should be unaffected
+        field: 'salary',
+        value: '999999',
+        start_date: '2025-01-01',
+        end_date: null,
+        note: null,
+        created_at: '2025-01-01T00:00:00Z',
+      },
+    ];
+    const resolved = resolveWorkforceAtDate(
+      [synth as Parameters<typeof resolveWorkforceAtDate>[0][number]],
+      [],
+      [],
+      scenarioEvents,
+      [],
+      '2026-06-01',
+    );
+    expect(resolved[0].salary).toBe(50000); // unchanged
   });
 });
 

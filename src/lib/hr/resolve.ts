@@ -1,5 +1,6 @@
 import {
   EventCostCenterAllocation,
+  HRScenarioMember,
   Member,
   MemberCategory,
   MEMBER_CATEGORIES,
@@ -282,15 +283,20 @@ export function resolveMemberAtYear(
 /**
  * Batch resolve a full workforce at a date.
  *
- * Filters events per-member internally:
- * - canonicalEvents filtered by member_id === member.id
- * - scenarioEvents filtered by scenario_member_id === member.id
- *   (in PR 5 this changes to support scenario events referencing
- *   canonical members via member_id; until then, only synthetic
- *   members consume scenarioEvents via this path.)
+ * Accepts both canonical `Member` rows and synthetic `HRScenarioMember` rows.
+ * The presence of `hr_scenario_id` on a member row discriminates synthetic
+ * from canonical.
+ *
+ * Event routing per-member:
+ * - Canonical member `m`:
+ *   - canonical events filtered by `e.member_id === m.id`
+ *   - scenario events filtered by `e.member_id === m.id` (canonical overrides)
+ * - Synthetic member `m`:
+ *   - no canonical events
+ *   - scenario events filtered by `e.scenario_member_id === m.id`
  */
 export function resolveWorkforceAtDate(
-  members: Member[],
+  members: Array<Member | HRScenarioMember>,
   baseAllocations: MemberCostCenterAllocation[],
   canonicalEvents: MemberEvent[],
   scenarioEvents: ScenarioMemberEvent[],
@@ -298,10 +304,17 @@ export function resolveWorkforceAtDate(
   date: string,
 ): ResolvedMember[] {
   return members.map((m) => {
-    const mCanonical = canonicalEvents.filter((e) => e.member_id === m.id);
-    const mScenario = scenarioEvents.filter((e) => e.scenario_member_id === m.id);
+    const isSynthetic = 'hr_scenario_id' in m;
+    const mCanonical = isSynthetic
+      ? []
+      : canonicalEvents.filter((e) => e.member_id === m.id);
+    const mScenario = isSynthetic
+      ? scenarioEvents.filter((e) => e.scenario_member_id === m.id)
+      : scenarioEvents.filter((e) => e.member_id === m.id);
+    // Both Member and HRScenarioMember are structurally accepted by
+    // resolveMemberAtDate's `member` parameter (all required fields overlap).
     return resolveMemberAtDate(
-      m,
+      m as Member,
       baseAllocations,
       mCanonical,
       mScenario,
