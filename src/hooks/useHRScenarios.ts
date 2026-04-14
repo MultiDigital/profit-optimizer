@@ -270,9 +270,54 @@ export function useHRScenarios() {
               .from('scenario_member_events')
               .insert(overrideRows);
             if (overrideError) throw overrideError;
-            // TODO: CDC sidecar rows for canonical-override events are not duplicated here.
-            // The existing synthetic-event CDC copy logic above handles synthetic events only.
-            // Add analogous logic here once canonical-override CDC events are in use.
+
+            // Copy CDC sidecar rows for canonical-override events
+            const cdcOverrideEvents = canonicalOverrides.filter((e) => e.field === 'cost_center_allocations');
+            if (cdcOverrideEvents.length > 0) {
+              // Re-fetch the inserted override events so we have their new IDs
+              const { data: insertedOverrides, error: fetchErr } = await supabase
+                .from('scenario_member_events')
+                .select('*')
+                .eq('hr_scenario_id', newScenario.id)
+                .not('member_id', 'is', null);
+              if (fetchErr) throw fetchErr;
+
+              // Fetch the source CDC allocations
+              const sourceOverrideEventIds = cdcOverrideEvents.map((e) => e.id);
+              const { data: sourceAllocs, error: allocErr } = await supabase
+                .from('event_cost_center_allocations')
+                .select('*')
+                .in('scenario_member_event_id', sourceOverrideEventIds);
+              if (allocErr) throw allocErr;
+
+              // Map source → new by (member_id, field, start_date)
+              const rowsToInsert: Array<{ scenario_member_event_id: string; cost_center_id: string; percentage: number }> = [];
+              for (const sourceEvt of cdcOverrideEvents) {
+                const newEvt = (insertedOverrides ?? []).find(
+                  (e: ScenarioMemberEvent) =>
+                    e.member_id === sourceEvt.member_id &&
+                    e.field === sourceEvt.field &&
+                    e.start_date === sourceEvt.start_date,
+                );
+                if (!newEvt) continue;
+                const myAllocs = (sourceAllocs ?? []).filter(
+                  (a: EventCostCenterAllocation) => a.scenario_member_event_id === sourceEvt.id,
+                );
+                for (const a of myAllocs) {
+                  rowsToInsert.push({
+                    scenario_member_event_id: newEvt.id,
+                    cost_center_id: a.cost_center_id,
+                    percentage: a.percentage,
+                  });
+                }
+              }
+              if (rowsToInsert.length > 0) {
+                const { error: insertErr } = await supabase
+                  .from('event_cost_center_allocations')
+                  .insert(rowsToInsert);
+                if (insertErr) throw insertErr;
+              }
+            }
           }
         }
       }
