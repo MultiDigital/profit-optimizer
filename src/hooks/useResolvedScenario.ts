@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useViewContext } from '@/contexts/ViewContext';
 import { useMembers, useCostCenters } from '@/hooks';
 import { useMemberEvents } from '@/hooks/useMemberEvents';
@@ -10,17 +10,15 @@ import { selectScenarioData, type ResolvedScenarioBundle } from '@/lib/view/sele
 export interface UseResolvedScenarioResult {
   bundle: ResolvedScenarioBundle;
   loading: boolean;
+  /**
+   * Re-fetch the scenario data for the current scenarioId. Call this after
+   * mutations that change scenario state so the bundle reflects fresh data.
+   * No-op when the active scenario is 'baseline' (catalog state is managed
+   * by the individual hooks that back it).
+   */
+  refetch: () => Promise<void>;
 }
 
-/**
- * Composes the scenario-aware data bundle for an analysis page.
- *
- * Reads `scenarioId` from ViewContext (or the optional `scenarioIdOverride`
- * for per-page local overrides, per spec decision C).
- *
- * Returns a bundle usable by the resolver; falls back to baseline while
- * scenario data is loading to avoid empty-state flash.
- */
 export function useResolvedScenario(scenarioIdOverride?: string): UseResolvedScenarioResult {
   const { scenarioId: contextScenarioId } = useViewContext();
   const activeScenarioId = scenarioIdOverride ?? contextScenarioId;
@@ -33,7 +31,16 @@ export function useResolvedScenario(scenarioIdOverride?: string): UseResolvedSce
   const [scenarioData, setScenarioData] = useState<HRScenarioWithData | null>(null);
   const [scenarioFetching, setScenarioFetching] = useState(false);
 
-  // Fetch scenario data when a non-baseline scenario is selected.
+  const loadScenario = useCallback(async (id: string) => {
+    setScenarioFetching(true);
+    try {
+      const data = await fetchHRScenarioWithData(id);
+      setScenarioData(data);
+    } finally {
+      setScenarioFetching(false);
+    }
+  }, [fetchHRScenarioWithData]);
+
   useEffect(() => {
     if (activeScenarioId === 'baseline') {
       setScenarioData(null);
@@ -50,6 +57,11 @@ export function useResolvedScenario(scenarioIdOverride?: string): UseResolvedSce
       cancelled = true;
     };
   }, [activeScenarioId, fetchHRScenarioWithData]);
+
+  const refetch = useCallback(async () => {
+    if (activeScenarioId === 'baseline') return;
+    await loadScenario(activeScenarioId);
+  }, [activeScenarioId, loadScenario]);
 
   const bundle = selectScenarioData({
     scenarioId: activeScenarioId,
@@ -68,5 +80,5 @@ export function useResolvedScenario(scenarioIdOverride?: string): UseResolvedSce
     scenariosLoading ||
     (activeScenarioId !== 'baseline' && scenarioFetching);
 
-  return { bundle, loading };
+  return { bundle, loading, refetch };
 }

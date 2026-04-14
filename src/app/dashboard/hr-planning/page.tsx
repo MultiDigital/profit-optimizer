@@ -46,7 +46,6 @@ export default function HRPlanningPage() {
     addHRScenario,
     deleteHRScenario,
     duplicateHRScenario,
-    fetchHRScenarioWithData,
     addScenarioEvent,
     addScenarioEventWithAllocations,
     updateScenarioEvent,
@@ -55,7 +54,7 @@ export default function HRPlanningPage() {
   } = useHRScenarios();
 
   // Resolved data bundle for the active source
-  const { bundle, loading: bundleLoading } = useResolvedScenario(source);
+  const { bundle, loading: bundleLoading, refetch: refetchActive } = useResolvedScenario(source);
 
   const activeMembers = [...bundle.canonicalMembers, ...bundle.syntheticMembers];
   const activeEvents = [
@@ -145,7 +144,7 @@ export default function HRPlanningPage() {
           });
         }
       }
-      await fetchHRScenarioWithData(source);
+      await refetchActive();
     }
     setEditingEvent(null);
   };
@@ -155,9 +154,9 @@ export default function HRPlanningPage() {
       await deleteEvent(eventId);
     } else {
       await deleteScenarioEvent(eventId);
-      await fetchHRScenarioWithData(source);
+      await refetchActive();
     }
-  }, [source, deleteEvent, deleteScenarioEvent, fetchHRScenarioWithData]);
+  }, [source, deleteEvent, deleteScenarioEvent, refetchActive]);
 
   const handleCreateScenario = async (name: string) => {
     const scenario = await addHRScenario(name);
