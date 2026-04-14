@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Member, SENIORITY_LABELS, MEMBER_CATEGORY_LABELS, MemberCategory, CapacitySettings, computeEffectiveDays } from '@/lib/optimizer/types';
-import { formatCurrency } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { formatCurrency, cn } from '@/lib/utils';
 
 interface ColumnActions {
   onEdit: (member: Member) => void;
@@ -23,9 +24,30 @@ export const createColumns = ({ onEdit, onDelete, capacitySettings }: ColumnActi
   {
     accessorKey: 'last_name',
     header: 'Last Name',
-    cell: ({ row }) => (
-      <div className="font-medium">{row.getValue('last_name')}</div>
-    ),
+    cell: ({ row }) => {
+      const member = row.original;
+      const today = new Date().toISOString().split('T')[0];
+      const sixMonths = new Date();
+      sixMonths.setMonth(sixMonths.getMonth() + 6);
+      const sixMonthsStr = sixMonths.toISOString().split('T')[0];
+
+      let badge: { label: string; className: string } | null = null;
+
+      if (member.contract_end_date && member.contract_end_date <= today) {
+        badge = { label: 'Terminato', className: 'bg-muted text-muted-foreground' };
+      } else if (member.contract_start_date && member.contract_start_date > today) {
+        badge = { label: 'Da assumere', className: 'bg-blue-500/15 text-blue-500 border-blue-500/20' };
+      } else if (member.contract_end_date && member.contract_end_date <= sixMonthsStr) {
+        badge = { label: 'In uscita', className: 'bg-orange-500/15 text-orange-500 border-orange-500/20' };
+      }
+
+      return (
+        <div className={cn('flex items-center gap-2 font-medium', member.contract_end_date && member.contract_end_date <= today && 'opacity-50')}>
+          {row.getValue('last_name')}
+          {badge && <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', badge.className)}>{badge.label}</Badge>}
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'first_name',

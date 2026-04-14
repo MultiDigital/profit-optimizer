@@ -70,6 +70,8 @@ export function MemberList({ members, capacitySettings, onUpdate, onDelete }: Me
         salary: editingMember.salary,
         chargeable_days: editingMember.chargeable_days ?? null,
         ft_percentage: editingMember.ft_percentage ?? 100,
+        contract_start_date: editingMember.contract_start_date ?? null,
+        contract_end_date: editingMember.contract_end_date ?? null,
       });
       setError(null);
     }
@@ -232,6 +234,25 @@ export function MemberList({ members, capacitySettings, onUpdate, onDelete }: Me
                 min={0}
                 step={1000}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Contract Start</Label>
+                <Input
+                  type="date"
+                  value={formData.contract_start_date || ''}
+                  onChange={(e) => setFormData({ ...formData, contract_start_date: e.target.value || null })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Contract End</Label>
+                <Input
+                  type="date"
+                  value={formData.contract_end_date || ''}
+                  onChange={(e) => setFormData({ ...formData, contract_end_date: e.target.value || null })}
+                />
+              </div>
             </div>
           </div>
 
