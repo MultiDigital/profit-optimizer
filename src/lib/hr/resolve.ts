@@ -2,11 +2,13 @@ import {
   EventCostCenterAllocation,
   Member,
   MemberCategory,
+  MEMBER_CATEGORIES,
   MemberCostCenterAllocation,
   MemberEvent,
   MemberEventField,
   ScenarioMemberEvent,
   SeniorityLevel,
+  SENIORITY_LEVELS,
 } from '@/lib/optimizer/types';
 import { ResolvedCostCenterAllocation, ResolvedMember } from './types';
 
@@ -60,6 +62,42 @@ function compareEventsByPrecedence(a: AnyResolverEvent, b: AnyResolverEvent): nu
     return rank(b.priority) - rank(a.priority);
   }
   return a.id.localeCompare(b.id);
+}
+
+function asCategory(raw: string | undefined, fallback: MemberCategory): MemberCategory {
+  if (raw !== undefined && (MEMBER_CATEGORIES as readonly string[]).includes(raw)) {
+    return raw as MemberCategory;
+  }
+  return fallback;
+}
+
+function asSeniority(
+  raw: string | undefined,
+  fallback: SeniorityLevel | null,
+): SeniorityLevel | null {
+  if (raw !== undefined && (SENIORITY_LEVELS as readonly string[]).includes(raw)) {
+    return raw as SeniorityLevel;
+  }
+  return fallback;
+}
+
+function toResolverEvent<
+  T extends {
+    id: string;
+    field: MemberEventField;
+    value: string;
+    start_date: string;
+    end_date: string | null;
+  },
+>(e: T, priority: 'canonical' | 'scenario'): AnyResolverEvent {
+  return {
+    id: e.id,
+    field: e.field,
+    value: e.value,
+    start_date: e.start_date,
+    end_date: e.end_date,
+    priority,
+  };
 }
 
 /**
@@ -152,22 +190,8 @@ export function resolveMemberAtDate(
   date: string,
 ): ResolvedMember {
   const all: AnyResolverEvent[] = [
-    ...canonicalEvents.map((e) => ({
-      id: e.id,
-      field: e.field,
-      value: e.value,
-      start_date: e.start_date,
-      end_date: e.end_date,
-      priority: 'canonical' as const,
-    })),
-    ...scenarioEvents.map((e) => ({
-      id: e.id,
-      field: e.field,
-      value: e.value,
-      start_date: e.start_date,
-      end_date: e.end_date,
-      priority: 'scenario' as const,
-    })),
+    ...canonicalEvents.map((e) => toResolverEvent(e, 'canonical')),
+    ...scenarioEvents.map((e) => toResolverEvent(e, 'scenario')),
   ];
 
   const salaryRaw = resolveFieldAtDate(all, 'salary', date);
@@ -195,8 +219,8 @@ export function resolveMemberAtDate(
     contract_start_date: member.contract_start_date,
     contract_end_date: member.contract_end_date,
 
-    category: (categoryRaw as MemberCategory | undefined) ?? member.category,
-    seniority: (seniorityRaw as SeniorityLevel | undefined) ?? member.seniority,
+    category: asCategory(categoryRaw, member.category),
+    seniority: asSeniority(seniorityRaw, member.seniority),
     salary: salaryRaw !== undefined ? parseFloat(salaryRaw) : member.salary,
     ft_percentage:
       ftRaw !== undefined ? parseFloat(ftRaw) : (member.ft_percentage ?? 100),

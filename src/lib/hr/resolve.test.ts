@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { isMemberActiveAtDate, resolveFieldAtDate, AnyResolverEvent, resolveCostCenterAllocationsAtDate } from './resolve';
-import { EventCostCenterAllocation } from '@/lib/optimizer/types';
+import {
+  isMemberActiveAtDate,
+  resolveFieldAtDate,
+  resolveCostCenterAllocationsAtDate,
+  resolveMemberAtDate,
+  AnyResolverEvent,
+} from './resolve';
+import {
+  EventCostCenterAllocation,
+  Member,
+  MemberCostCenterAllocation,
+  MemberEvent,
+  ScenarioMemberEvent,
+} from '@/lib/optimizer/types';
 
 describe('isMemberActiveAtDate', () => {
   it('returns true when date is after contract_start and end is null', () => {
@@ -393,9 +405,6 @@ describe('resolveCostCenterAllocationsAtDate', () => {
     ).toEqual(base);
   });
 });
-
-import { resolveMemberAtDate } from './resolve';
-import { Member, MemberEvent, ScenarioMemberEvent, MemberCostCenterAllocation } from '@/lib/optimizer/types';
 
 function makeMember(overrides: Partial<Member> = {}): Member {
   return {
