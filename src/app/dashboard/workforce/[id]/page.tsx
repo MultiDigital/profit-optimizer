@@ -24,6 +24,7 @@ import {
   Skeleton,
 } from '@/components/ui';
 import {
+  Member,
   MemberEvent,
   MemberEventInput,
   ScenarioMemberEvent,
@@ -65,13 +66,20 @@ export default function EmployeePage() {
   // Driven by which panel's + button was pressed.
   const [dialogTarget, setDialogTarget] = useState<'baseline' | 'scenario'>('baseline');
 
-  const member = bundle.canonicalMembers.find((m) => m.id === id);
+  const canonical = bundle.canonicalMembers.find((m) => m.id === id);
+  const synthetic = bundle.syntheticMembers.find((m) => m.id === id);
+  const member = canonical ?? synthetic;
+  const isSynthetic = !canonical && !!synthetic;
   const loading = bundleLoading || canonicalEventsLoading;
 
-  // Scenario events scoped to THIS canonical member
+  // Scenario events scoped to THIS member (canonical events match by member_id;
+  // synthetic member events match by scenario_member_id).
   const scenarioEventsForMember = useMemo(
-    () => bundle.scenarioEvents.filter((e) => e.member_id === id),
-    [bundle.scenarioEvents, id],
+    () =>
+      isSynthetic
+        ? bundle.scenarioEvents.filter((e) => e.scenario_member_id === id)
+        : bundle.scenarioEvents.filter((e) => e.member_id === id),
+    [bundle.scenarioEvents, id, isSynthetic],
   );
 
   // Resolved state TODAY (scenario overlay applied if a scenario is active)
@@ -79,7 +87,7 @@ export default function EmployeePage() {
     if (!member) return null;
     const today = new Date().toISOString().slice(0, 10);
     return resolveMemberAtDate(
-      member,
+      member as Member,
       bundle.baseAllocations,
       canonicalEventsForMember,
       scenarioEventsForMember,
@@ -97,8 +105,9 @@ export default function EmployeePage() {
       if ('hr_scenario_id' in editingEvent) {
         await updateScenarioEvent(editingEvent.id, {
           hr_scenario_id: editingEvent.hr_scenario_id,
-          member_id: input.member_id,
-          scenario_member_id: null,
+          // Preserve the existing member linkage (canonical vs synthetic) from the event.
+          member_id: editingEvent.member_id ?? null,
+          scenario_member_id: editingEvent.scenario_member_id ?? null,
           field: input.field,
           value: input.value,
           start_date: input.start_date,
@@ -120,8 +129,9 @@ export default function EmployeePage() {
         if (scenarioId === 'baseline') return; // safety; panel is hidden in baseline mode
         const scenInput = {
           hr_scenario_id: scenarioId,
-          member_id: id,
-          scenario_member_id: null,
+          // Synthetic members are keyed by scenario_member_id; canonical members by member_id.
+          member_id: isSynthetic ? null : id,
+          scenario_member_id: isSynthetic ? id : null,
           field: input.field,
           value: input.value,
           start_date: input.start_date,
@@ -217,44 +227,46 @@ export default function EmployeePage() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-4">
         {/* Left column: Initial + Actual */}
         <div className="space-y-4">
-          <InitialStateCard member={member} baseAllocations={bundle.baseAllocations} costCenters={costCenters} />
+          <InitialStateCard member={member as Member} baseAllocations={bundle.baseAllocations} costCenters={costCenters} />
           {resolved && <ActualStateCard resolved={resolved} costCenters={costCenters} />}
         </div>
 
         {/* Right column: canonical timeline + optional scenario overlay */}
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Planned Changes (baseline)</CardTitle>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingEvent(null);
+          {!isSynthetic && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Planned Changes (baseline)</CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingEvent(null);
+                      setDialogTarget('baseline');
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Change
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <HREventList
+                  events={canonicalEventsForMember}
+                  onEdit={(event) => {
+                    setEditingEvent(event as MemberEvent);
                     setDialogTarget('baseline');
                     setDialogOpen(true);
                   }}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Change
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <HREventList
-                events={canonicalEventsForMember}
-                onEdit={(event) => {
-                  setEditingEvent(event as MemberEvent);
-                  setDialogTarget('baseline');
-                  setDialogOpen(true);
-                }}
-                onDelete={(eventId) => {
-                  const target = canonicalEventsForMember.find((e) => e.id === eventId);
-                  if (target) handleDeleteEvent(target);
-                }}
-              />
-            </CardContent>
-          </Card>
+                  onDelete={(eventId) => {
+                    const target = canonicalEventsForMember.find((e) => e.id === eventId);
+                    if (target) handleDeleteEvent(target);
+                  }}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {scenarioActive && bundle.scenarioName && (
             <ScenarioOverlayPanel
