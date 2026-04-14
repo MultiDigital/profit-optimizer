@@ -12,10 +12,8 @@ import { HRComparisonView } from '@/components/hr/HRComparisonView';
 import { resolveWorkforceAtDate } from '@/lib/hr/resolve';
 import type { ResolvedMember } from '@/lib/hr/types';
 import {
-  Member,
-  MemberEvent,
-  ScenarioMemberEvent,
   CostCenter,
+  MemberEvent,
   Settings,
   SeniorityLevel,
   SENIORITY_LEVELS,
@@ -302,15 +300,12 @@ export default function WorkforceAnalyticsPage() {
   // Resolve workforce at mid-year of the selected year.
   const resolved = useMemo(() => {
     const anchorDate = `${year}-06-01`;
-    const canonicalEvents =
-      bundle.source === 'baseline' ? (bundle.events as MemberEvent[]) : [];
-    const scenarioEvents =
-      bundle.source === 'scenario' ? (bundle.events as ScenarioMemberEvent[]) : [];
+    const allMembers = [...bundle.canonicalMembers, ...bundle.syntheticMembers];
     return resolveWorkforceAtDate(
-      bundle.members as Member[],
+      allMembers,
       bundle.baseAllocations,
-      canonicalEvents,
-      scenarioEvents,
+      bundle.canonicalEvents,
+      bundle.scenarioEvents,
       bundle.eventAllocations,
       anchorDate
     );
@@ -341,9 +336,11 @@ export default function WorkforceAnalyticsPage() {
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Monthly Timeline tab (Task 6)
+  const allMembers = [...bundle.canonicalMembers, ...bundle.syntheticMembers];
+  const allEvents = [...bundle.canonicalEvents, ...bundle.scenarioEvents] as MemberEvent[];
   const { yearlyView, isCalculating } = useHRPlanning(
-    bundle.members,
-    bundle.events,
+    allMembers,
+    allEvents,
     settings,
     bundle.baseAllocations,
     bundle.eventAllocations,
@@ -358,17 +355,21 @@ export default function WorkforceAnalyticsPage() {
   const { bundle: sideABundle } = useResolvedScenario(sideAId);
   const { bundle: sideBBundle } = useResolvedScenario(sideBId);
 
+  const sideAMembers = [...sideABundle.canonicalMembers, ...sideABundle.syntheticMembers];
+  const sideAEvents = [...sideABundle.canonicalEvents, ...sideABundle.scenarioEvents] as MemberEvent[];
   const { yearlyView: yearlyViewA } = useHRPlanning(
-    sideABundle.members,
-    sideABundle.events,
+    sideAMembers,
+    sideAEvents,
     settings,
     sideABundle.baseAllocations,
     sideABundle.eventAllocations,
     year,
   );
+  const sideBMembers = [...sideBBundle.canonicalMembers, ...sideBBundle.syntheticMembers];
+  const sideBEvents = [...sideBBundle.canonicalEvents, ...sideBBundle.scenarioEvents] as MemberEvent[];
   const { yearlyView: yearlyViewB } = useHRPlanning(
-    sideBBundle.members,
-    sideBBundle.events,
+    sideBMembers,
+    sideBEvents,
     settings,
     sideBBundle.baseAllocations,
     sideBBundle.eventAllocations,
