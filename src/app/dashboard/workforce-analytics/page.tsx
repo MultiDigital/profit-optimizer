@@ -6,7 +6,9 @@ import { useCostCenters, useSettings } from '@/hooks';
 import { useViewContext } from '@/contexts/ViewContext';
 import { useResolvedScenario } from '@/hooks/useResolvedScenario';
 import { useHRPlanning } from '@/hooks/useHRPlanning';
+import { useHRScenarios } from '@/hooks/useHRScenarios';
 import { HRYearlyTable } from '@/components/hr/HRYearlyTable';
+import { HRComparisonView } from '@/components/hr/HRComparisonView';
 import { resolveWorkforceAtDate } from '@/lib/hr/resolve';
 import type { ResolvedMember } from '@/lib/hr/types';
 import {
@@ -38,6 +40,11 @@ import {
   TabsTrigger,
   TabsContent,
   Skeleton,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui';
 import { formatCurrency, formatNumber, cn } from '@/lib/utils';
 
@@ -343,6 +350,34 @@ export default function WorkforceAnalyticsPage() {
     year,
   );
 
+  // Compare scenarios tab (Task 7)
+  const [sideAId, setSideAId] = useState<string>('baseline');
+  const [sideBId, setSideBId] = useState<string>('baseline');
+
+  const { hrScenarios } = useHRScenarios();
+  const { bundle: sideABundle } = useResolvedScenario(sideAId);
+  const { bundle: sideBBundle } = useResolvedScenario(sideBId);
+
+  const { yearlyView: yearlyViewA } = useHRPlanning(
+    sideABundle.members,
+    sideABundle.events,
+    settings,
+    sideABundle.baseAllocations,
+    sideABundle.eventAllocations,
+    year,
+  );
+  const { yearlyView: yearlyViewB } = useHRPlanning(
+    sideBBundle.members,
+    sideBBundle.events,
+    settings,
+    sideBBundle.baseAllocations,
+    sideBBundle.eventAllocations,
+    year,
+  );
+
+  const sideALabel = sideAId === 'baseline' ? 'Baseline' : (hrScenarios.find((s) => s.id === sideAId)?.name ?? 'Scenario');
+  const sideBLabel = sideBId === 'baseline' ? 'Baseline' : (hrScenarios.find((s) => s.id === sideBId)?.name ?? 'Scenario');
+
   return (
     <div className="p-4 md:p-6">
       <div className="max-w-5xl">
@@ -369,6 +404,7 @@ export default function WorkforceAnalyticsPage() {
                 <TabsList>
                   <TabsTrigger value="breakdown">Per CDC</TabsTrigger>
                   <TabsTrigger value="monthly">Monthly Timeline</TabsTrigger>
+                  <TabsTrigger value="compare">Compare scenarios</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="breakdown">
@@ -480,6 +516,43 @@ export default function WorkforceAnalyticsPage() {
 
                 <TabsContent value="monthly">
                   <HRYearlyTable yearlyView={yearlyView} loading={isCalculating} />
+                </TabsContent>
+
+                <TabsContent value="compare" className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Side A:</span>
+                      <Select value={sideAId} onValueChange={setSideAId}>
+                        <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="baseline">Baseline</SelectItem>
+                          {hrScenarios.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Side B:</span>
+                      <Select value={sideBId} onValueChange={setSideBId}>
+                        <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="baseline">Baseline</SelectItem>
+                          {hrScenarios.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {yearlyViewA && yearlyViewB && (
+                    <HRComparisonView
+                      baseView={yearlyViewA}
+                      compareView={yearlyViewB}
+                      baseLabel={sideALabel}
+                      compareLabel={sideBLabel}
+                    />
+                  )}
                 </TabsContent>
               </Tabs>
             )}
