@@ -5,6 +5,7 @@ import {
   resolveCostCenterAllocationsAtDate,
   resolveMemberAtDate,
   resolveWorkforceAtDate,
+  resolveMemberAtYear,
   AnyResolverEvent,
 } from './resolve';
 import {
@@ -633,5 +634,44 @@ describe('resolveWorkforceAtDate', () => {
     );
     expect(resolved.find((r) => r.id === 'm-1')!.salary).toBe(99999);
     expect(resolved.find((r) => r.id === 'm-2')!.salary).toBe(50000);
+  });
+});
+
+describe('resolveMemberAtYear', () => {
+  it('returns 12 snapshots, one per month', () => {
+    const m = makeMember();
+    const snaps = resolveMemberAtYear(m, [], [], [], [], 2026);
+    expect(snaps).toHaveLength(12);
+    expect(snaps[0].resolvedAt).toBe('2026-01-01');
+    expect(snaps[11].resolvedAt).toBe('2026-12-01');
+  });
+
+  it('reflects mid-year salary change across the 12 monthly snapshots', () => {
+    const m = makeMember({ salary: 40000 });
+    const events = [
+      makeMemberEvent({ field: 'salary', value: '45000', start_date: '2026-07-01' }),
+    ];
+    const snaps = resolveMemberAtYear(m, [], events, [], [], 2026);
+    // Jan-Jun: 40000
+    expect(snaps[0].salary).toBe(40000);
+    expect(snaps[5].salary).toBe(40000);
+    // Jul onwards: 45000
+    expect(snaps[6].salary).toBe(45000);
+    expect(snaps[11].salary).toBe(45000);
+  });
+
+  it('marks months outside contract window as inactive', () => {
+    const m = makeMember({
+      contract_start_date: '2026-03-15',
+      contract_end_date: '2026-09-30',
+    });
+    const snaps = resolveMemberAtYear(m, [], [], [], [], 2026);
+    expect(snaps[0].isActive).toBe(false); // Jan: before start
+    expect(snaps[1].isActive).toBe(false); // Feb: before start
+    expect(snaps[2].isActive).toBe(false); // Mar 1: still before start (start is Mar 15)
+    expect(snaps[3].isActive).toBe(true);  // Apr 1: in range
+    expect(snaps[8].isActive).toBe(true);  // Sep 1: in range
+    expect(snaps[9].isActive).toBe(false); // Oct 1: after end
+    expect(snaps[11].isActive).toBe(false); // Dec: after end
   });
 });

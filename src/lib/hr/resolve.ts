@@ -242,6 +242,35 @@ export function resolveMemberAtDate(
 }
 
 /**
+ * Resolve 12 monthly snapshots for a member across a calendar year.
+ * Each snapshot is resolved at the first day of the month.
+ */
+export function resolveMemberAtYear(
+  member: Member,
+  baseAllocations: MemberCostCenterAllocation[],
+  canonicalEvents: MemberEvent[],
+  scenarioEvents: ScenarioMemberEvent[],
+  eventAllocations: EventCostCenterAllocation[],
+  year: number,
+): ResolvedMember[] {
+  const snapshots: ResolvedMember[] = [];
+  for (let m = 1; m <= 12; m++) {
+    const date = `${year}-${String(m).padStart(2, '0')}-01`;
+    snapshots.push(
+      resolveMemberAtDate(
+        member,
+        baseAllocations,
+        canonicalEvents,
+        scenarioEvents,
+        eventAllocations,
+        date,
+      ),
+    );
+  }
+  return snapshots;
+}
+
+/**
  * Batch resolve a full workforce at a date.
  *
  * Filters events per-member internally:
