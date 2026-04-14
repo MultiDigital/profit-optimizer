@@ -5,6 +5,8 @@ import { ChevronRight } from 'lucide-react';
 import { useCostCenters, useSettings } from '@/hooks';
 import { useViewContext } from '@/contexts/ViewContext';
 import { useResolvedScenario } from '@/hooks/useResolvedScenario';
+import { useHRPlanning } from '@/hooks/useHRPlanning';
+import { HRYearlyTable } from '@/components/hr/HRYearlyTable';
 import { resolveWorkforceAtDate } from '@/lib/hr/resolve';
 import type { ResolvedMember } from '@/lib/hr/types';
 import {
@@ -331,6 +333,16 @@ export default function WorkforceAnalyticsPage() {
   const toggle = (id: string) =>
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  // Monthly Timeline tab (Task 6)
+  const { yearlyView, isCalculating } = useHRPlanning(
+    bundle.members,
+    bundle.events,
+    settings,
+    bundle.baseAllocations,
+    bundle.eventAllocations,
+    year,
+  );
+
   return (
     <div className="p-4 md:p-6">
       <div className="max-w-5xl">
@@ -356,6 +368,7 @@ export default function WorkforceAnalyticsPage() {
               <Tabs defaultValue="breakdown">
                 <TabsList>
                   <TabsTrigger value="breakdown">Per CDC</TabsTrigger>
+                  <TabsTrigger value="monthly">Monthly Timeline</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="breakdown">
@@ -463,6 +476,10 @@ export default function WorkforceAnalyticsPage() {
                       )}
                     </TabsContent>
                   </Tabs>
+                </TabsContent>
+
+                <TabsContent value="monthly">
+                  <HRYearlyTable yearlyView={yearlyView} loading={isCalculating} />
                 </TabsContent>
               </Tabs>
             )}
