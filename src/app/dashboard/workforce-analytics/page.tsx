@@ -2,8 +2,25 @@
 
 import { useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { useMembers, useCostCenters, useSettings } from '@/hooks';
+import { useCostCenters, useSettings } from '@/hooks';
+import { useViewContext } from '@/contexts/ViewContext';
+import { useResolvedScenario } from '@/hooks/useResolvedScenario';
+import { resolveWorkforceAtDate } from '@/lib/hr/resolve';
+import type { ResolvedMember } from '@/lib/hr/types';
 import {
+  Member,
+  MemberEvent,
+  ScenarioMemberEvent,
+  CostCenter,
+  Settings,
+  SeniorityLevel,
+  SENIORITY_LEVELS,
+  SENIORITY_LABELS,
+  DEFAULT_SETTINGS,
+  computeEffectiveDays,
+} from '@/lib/optimizer/types';
+import {
+  Badge,
   Card,
   CardHeader,
   CardTitle,
@@ -20,17 +37,6 @@ import {
   TabsContent,
   Skeleton,
 } from '@/components/ui';
-import {
-  Member,
-  CostCenter,
-  MemberCostCenterAllocation,
-  Settings,
-  SeniorityLevel,
-  SENIORITY_LEVELS,
-  SENIORITY_LABELS,
-  DEFAULT_SETTINGS,
-  computeEffectiveDays,
-} from '@/lib/optimizer/types';
 import { formatCurrency, formatNumber, cn } from '@/lib/utils';
 
 function formatFte(value: number): string {
@@ -83,7 +89,7 @@ function getEffectiveSettings(settings: Settings | null) {
 }
 
 function getMemberFte(
-  m: Member,
+  m: ResolvedMember,
   effectiveDays: number,
   yearlyWorkableDays: number
 ): number {
@@ -92,28 +98,30 @@ function getMemberFte(
       ? m.chargeable_days / effectiveDays
       : yearlyWorkableDays / effectiveDays;
   }
-  return (m.ft_percentage ?? 100) / 100;
+  return m.ft_percentage / 100;
 }
 
 function getMemberProductiveDays(
-  m: Member,
+  m: ResolvedMember,
   effectiveDays: number,
   yearlyWorkableDays: number
 ): number {
   if (m.category === 'freelance') {
     return m.chargeable_days ?? yearlyWorkableDays;
   }
-  return effectiveDays * ((m.ft_percentage ?? 100) / 100);
+  return effectiveDays * (m.ft_percentage / 100);
 }
 
 // --- Compute total workforce (no cost center proration) ---
 
 function computeTotalWorkforce(
-  members: Member[],
+  resolvedMembers: ResolvedMember[],
   settings: Settings | null
 ): TotalSummary {
   const { s, effectiveDays } = getEffectiveSettings(settings);
-  const eligible = members.filter((m) => m.category !== 'segnalatore');
+  const eligible = resolvedMembers.filter(
+    (m) => m.isActive && m.category !== 'segnalatore'
+  );
 
   const rows: SeniorityRow[] = [];
 
@@ -154,19 +162,14 @@ function computeTotalWorkforce(
 // --- Compute by cost center ---
 
 function computeByCostCenter(
-  members: Member[],
+  resolvedMembers: ResolvedMember[],
   costCenters: CostCenter[],
-  allocations: MemberCostCenterAllocation[],
   settings: Settings | null
 ): CostCenterGroup[] {
   const { s, effectiveDays } = getEffectiveSettings(settings);
-  const eligible = members.filter((m) => m.category !== 'segnalatore');
-
-  const allocMap = new Map<string, Map<string, number>>();
-  for (const a of allocations) {
-    if (!allocMap.has(a.member_id)) allocMap.set(a.member_id, new Map());
-    allocMap.get(a.member_id)!.set(a.cost_center_id, a.percentage);
-  }
+  const eligible = resolvedMembers.filter(
+    (m) => m.isActive && m.category !== 'segnalatore'
+  );
 
   const groups: CostCenterGroup[] = [];
 
@@ -180,12 +183,16 @@ function computeByCostCenter(
 
       for (const m of eligible) {
         if (m.seniority !== seniority) continue;
-        const allocPct = allocMap.get(m.id)?.get(cc.id) ?? 0;
+        const alloc = m.costCenterAllocations.find(
+          (a) => a.cost_center_id === cc.id
+        );
+        const allocPct = alloc?.percentage ?? 0;
         if (allocPct === 0) continue;
 
         const allocFraction = allocPct / 100;
         fte += getMemberFte(m, effectiveDays, s.yearly_workable_days) * allocFraction;
-        productiveDays += getMemberProductiveDays(m, effectiveDays, s.yearly_workable_days) * allocFraction;
+        productiveDays +=
+          getMemberProductiveDays(m, effectiveDays, s.yearly_workable_days) * allocFraction;
         totalCost += m.salary * allocFraction;
       }
 
@@ -276,20 +283,38 @@ function TotalsRow({
 // --- Page component ---
 
 export default function WorkforceAnalyticsPage() {
-  const { members, loading: membersLoading } = useMembers();
+  const { year } = useViewContext();
+  const { bundle, loading: scenarioLoading } = useResolvedScenario();
   const { settings, loading: settingsLoading } = useSettings();
-  const { costCenters, allocations, loading: ccLoading } = useCostCenters();
+  const { costCenters, loading: ccLoading } = useCostCenters();
 
-  const loading = membersLoading || settingsLoading || ccLoading;
+  const loading = scenarioLoading || settingsLoading || ccLoading;
+
+  // Resolve workforce at mid-year of the selected year.
+  const resolved = useMemo(() => {
+    const anchorDate = `${year}-06-01`;
+    const canonicalEvents =
+      bundle.source === 'baseline' ? (bundle.events as MemberEvent[]) : [];
+    const scenarioEvents =
+      bundle.source === 'scenario' ? (bundle.events as ScenarioMemberEvent[]) : [];
+    return resolveWorkforceAtDate(
+      bundle.members as Member[],
+      bundle.baseAllocations,
+      canonicalEvents,
+      scenarioEvents,
+      bundle.eventAllocations,
+      anchorDate
+    );
+  }, [bundle, year]);
 
   const totalWorkforce = useMemo(
-    () => computeTotalWorkforce(members, settings),
-    [members, settings]
+    () => computeTotalWorkforce(resolved, settings),
+    [resolved, settings]
   );
 
   const groups = useMemo(
-    () => computeByCostCenter(members, costCenters, allocations, settings),
-    [members, costCenters, allocations, settings]
+    () => computeByCostCenter(resolved, costCenters, settings),
+    [resolved, costCenters, settings]
   );
 
   const ccTotals = useMemo(
@@ -311,7 +336,14 @@ export default function WorkforceAnalyticsPage() {
       <div className="max-w-5xl">
         <Card>
           <CardHeader>
-            <CardTitle>Workforce Analytics</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Workforce Analytics
+              {bundle.source === 'scenario' && bundle.scenarioName && (
+                <Badge variant="outline" className="text-[10px]">
+                  scenario: {bundle.scenarioName}
+                </Badge>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -321,108 +353,116 @@ export default function WorkforceAnalyticsPage() {
                 ))}
               </div>
             ) : (
-              <Tabs defaultValue="total">
+              <Tabs defaultValue="breakdown">
                 <TabsList>
-                  <TabsTrigger value="total">Totale</TabsTrigger>
-                  <TabsTrigger value="cost-centers">Per Centro di Costo</TabsTrigger>
+                  <TabsTrigger value="breakdown">Per CDC</TabsTrigger>
                 </TabsList>
 
-                {/* Total workforce tab */}
-                <TabsContent value="total">
-                  {totalWorkforce.rows.length === 0 ? (
-                    <p className="text-muted-foreground text-sm py-4">
-                      No members to display.
-                    </p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[200px]"></TableHead>
-                          <TableHead className="text-right">FTE</TableHead>
-                          <TableHead className="text-right">Giorni produttivi</TableHead>
-                          <TableHead className="text-right">Ore produttive</TableHead>
-                          <TableHead className="text-right">Costo orario</TableHead>
-                          <TableHead className="text-right">Totale Costo Personale</TableHead>
-                          <TableHead className="text-right">% Incidenza</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {totalWorkforce.rows.map((row) => (
-                          <TableRow key={row.seniority}>
-                            <TableCell className="text-muted-foreground">
-                              {SENIORITY_LABELS[row.seniority]}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatFte(row.fte)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatNumber(Math.round(row.productiveDays))}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatNumber(Math.round(row.productiveHours))}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatNumber(Math.round(row.hourlyCost))}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(row.totalCost)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {totalWorkforce.totalCost > 0
-                                ? `${((row.totalCost / totalWorkforce.totalCost) * 100).toFixed(1)}%`
-                                : '-'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow className="border-t-2 border-foreground/20 font-bold">
-                          <TableCell>Totale</TableCell>
-                          <TableCell className="text-right">{formatFte(totalWorkforce.totalFte)}</TableCell>
-                          <TableCell className="text-right">{formatNumber(Math.round(totalWorkforce.totalProductiveDays))}</TableCell>
-                          <TableCell className="text-right">{formatNumber(Math.round(totalWorkforce.totalProductiveHours))}</TableCell>
-                          <TableCell className="text-right">
-                            {totalWorkforce.totalProductiveHours > 0
-                              ? formatNumber(Math.round(totalWorkforce.totalCost / totalWorkforce.totalProductiveHours))
-                              : '-'}
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(totalWorkforce.totalCost)}</TableCell>
-                          <TableCell className="text-right">100%</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  )}
-                </TabsContent>
+                <TabsContent value="breakdown">
+                  <Tabs defaultValue="total">
+                    <TabsList>
+                      <TabsTrigger value="total">Totale</TabsTrigger>
+                      <TabsTrigger value="cost-centers">Per Centro di Costo</TabsTrigger>
+                    </TabsList>
 
-                {/* By cost center tab */}
-                <TabsContent value="cost-centers">
-                  {groups.length === 0 ? (
-                    <p className="text-muted-foreground text-sm py-4">
-                      No data to display. Make sure you have members assigned to
-                      cost centers.
-                    </p>
-                  ) : (
-                    <Table>
-                      <AnalyticsTableHeader />
-                      <TableBody>
-                        {groups.map((g) => (
-                          <CostCenterSection
-                            key={g.costCenter.id}
-                            group={g}
-                            isCollapsed={collapsed[g.costCenter.id] ?? false}
-                            onToggle={() => toggle(g.costCenter.id)}
-                            grandTotalCost={ccTotals.totalCost}
-                          />
-                        ))}
-                        <TotalsRow
-                          label="Totale"
-                          className="border-t-2 border-foreground/20"
-                          fte={ccTotals.fte}
-                          productiveDays={ccTotals.productiveDays}
-                          productiveHours={ccTotals.productiveHours}
-                          totalCost={ccTotals.totalCost}
-                        />
-                      </TableBody>
-                    </Table>
-                  )}
+                    {/* Total workforce tab */}
+                    <TabsContent value="total">
+                      {totalWorkforce.rows.length === 0 ? (
+                        <p className="text-muted-foreground text-sm py-4">
+                          No members to display.
+                        </p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[200px]"></TableHead>
+                              <TableHead className="text-right">FTE</TableHead>
+                              <TableHead className="text-right">Giorni produttivi</TableHead>
+                              <TableHead className="text-right">Ore produttive</TableHead>
+                              <TableHead className="text-right">Costo orario</TableHead>
+                              <TableHead className="text-right">Totale Costo Personale</TableHead>
+                              <TableHead className="text-right">% Incidenza</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {totalWorkforce.rows.map((row) => (
+                              <TableRow key={row.seniority}>
+                                <TableCell className="text-muted-foreground">
+                                  {SENIORITY_LABELS[row.seniority]}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatFte(row.fte)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatNumber(Math.round(row.productiveDays))}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatNumber(Math.round(row.productiveHours))}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatNumber(Math.round(row.hourlyCost))}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {formatCurrency(row.totalCost)}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {totalWorkforce.totalCost > 0
+                                    ? `${((row.totalCost / totalWorkforce.totalCost) * 100).toFixed(1)}%`
+                                    : '-'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="border-t-2 border-foreground/20 font-bold">
+                              <TableCell>Totale</TableCell>
+                              <TableCell className="text-right">{formatFte(totalWorkforce.totalFte)}</TableCell>
+                              <TableCell className="text-right">{formatNumber(Math.round(totalWorkforce.totalProductiveDays))}</TableCell>
+                              <TableCell className="text-right">{formatNumber(Math.round(totalWorkforce.totalProductiveHours))}</TableCell>
+                              <TableCell className="text-right">
+                                {totalWorkforce.totalProductiveHours > 0
+                                  ? formatNumber(Math.round(totalWorkforce.totalCost / totalWorkforce.totalProductiveHours))
+                                  : '-'}
+                              </TableCell>
+                              <TableCell className="text-right">{formatCurrency(totalWorkforce.totalCost)}</TableCell>
+                              <TableCell className="text-right">100%</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      )}
+                    </TabsContent>
+
+                    {/* By cost center tab */}
+                    <TabsContent value="cost-centers">
+                      {groups.length === 0 ? (
+                        <p className="text-muted-foreground text-sm py-4">
+                          No data to display. Make sure you have members assigned to
+                          cost centers.
+                        </p>
+                      ) : (
+                        <Table>
+                          <AnalyticsTableHeader />
+                          <TableBody>
+                            {groups.map((g) => (
+                              <CostCenterSection
+                                key={g.costCenter.id}
+                                group={g}
+                                isCollapsed={collapsed[g.costCenter.id] ?? false}
+                                onToggle={() => toggle(g.costCenter.id)}
+                                grandTotalCost={ccTotals.totalCost}
+                              />
+                            ))}
+                            <TotalsRow
+                              label="Totale"
+                              className="border-t-2 border-foreground/20"
+                              fte={ccTotals.fte}
+                              productiveDays={ccTotals.productiveDays}
+                              productiveHours={ccTotals.productiveHours}
+                              totalCost={ccTotals.totalCost}
+                            />
+                          </TableBody>
+                        </Table>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 </TabsContent>
               </Tabs>
             )}
