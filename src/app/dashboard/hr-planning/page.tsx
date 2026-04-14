@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { useMembers } from '@/hooks/useMembers';
+import { useState, useCallback } from 'react';
 import { useSettings } from '@/hooks/useSettings';
 import { useCostCenters } from '@/hooks/useCostCenters';
 import { useMemberEvents } from '@/hooks/useMemberEvents';
-import { useHRScenarios, HRScenarioWithData } from '@/hooks/useHRScenarios';
+import { useHRScenarios } from '@/hooks/useHRScenarios';
 import { useHRPlanning } from '@/hooks/useHRPlanning';
+import { useResolvedScenario } from '@/hooks/useResolvedScenario';
 import { HRKPICards } from '@/components/hr/HRKPICards';
 import { HRYearlyTable } from '@/components/hr/HRYearlyTable';
 import { HREventDialog } from '@/components/hr/HREventDialog';
@@ -24,24 +24,23 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, GitCompareArrows } from 'lucide-react';
-import { Member, MemberEvent, MemberEventInput, HRScenarioMember, ScenarioMemberEvent, EventCostCenterAllocation } from '@/lib/optimizer/types';
+import { MemberEvent, MemberEventInput, ScenarioMemberEvent } from '@/lib/optimizer/types';
 
 export default function HRPlanningPage() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
-  const [source, setSource] = useState('catalog');
+  const [source, setSource] = useState('baseline');
   const [tab, setTab] = useState('planning');
   const [cdcFilter, setCdcFilter] = useState<string | null>(null);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<MemberEvent | ScenarioMemberEvent | null>(null);
 
-  // Catalog data
-  const { members: catalogMembers, loading: membersLoading } = useMembers();
+  // Catalog write hooks (still needed for event mutations)
   const { settings, loading: settingsLoading } = useSettings();
   const { costCenters, allocations, loading: costCentersLoading } = useCostCenters();
-  const { events: catalogEvents, eventAllocations: catalogEventAllocations, addEvent, addEventWithAllocations, updateEvent, updateEventAllocations, deleteEvent, loading: eventsLoading } = useMemberEvents();
+  const { addEvent, addEventWithAllocations, updateEvent, updateEventAllocations, deleteEvent, loading: eventsLoading } = useMemberEvents();
 
-  // HR Scenarios
+  // HR Scenarios (needed for scenario management actions)
   const {
     hrScenarios,
     addHRScenario,
@@ -55,27 +54,15 @@ export default function HRPlanningPage() {
     deleteScenarioEvent,
   } = useHRScenarios();
 
-  // Scenario data (loaded when source changes)
-  const [scenarioData, setScenarioData] = useState<HRScenarioWithData | null>(null);
+  // Resolved data bundle for the active source
+  const { bundle, loading: bundleLoading } = useResolvedScenario(source);
 
-  useEffect(() => {
-    if (source !== 'catalog') {
-      fetchHRScenarioWithData(source).then(setScenarioData);
-    } else {
-      setScenarioData(null);
-    }
-  }, [source, fetchHRScenarioWithData]);
-
-  // Determine active members and events based on source
-  const activeMembers = source === 'catalog'
-    ? catalogMembers
-    : (scenarioData?.members ?? []);
-  const activeEvents = source === 'catalog'
-    ? catalogEvents
-    : (scenarioData?.events ?? []);
-  const activeEventAllocations: EventCostCenterAllocation[] = source === 'catalog'
-    ? catalogEventAllocations
-    : (scenarioData?.eventAllocations ?? []);
+  const activeMembers = [...bundle.canonicalMembers, ...bundle.syntheticMembers];
+  const activeEvents = [
+    ...bundle.canonicalEvents,
+    ...bundle.scenarioEvents,
+  ] as MemberEvent[]; // Cast for useHRPlanning union-of-arrays signature; safe per compute.ts routing
+  const activeEventAllocations = bundle.eventAllocations;
 
   // Computation
   const { yearlyView, isCalculating } = useHRPlanning(
@@ -89,18 +76,16 @@ export default function HRPlanningPage() {
 
   // Comparison state
   const [compareSource, setCompareSource] = useState<string | null>(null);
-  const [compareData, setCompareData] = useState<HRScenarioWithData | null>(null);
 
-  const compareMembers = compareSource === 'catalog'
-    ? catalogMembers
-    : (compareData?.members ?? []);
-  const compareEvents = compareSource === 'catalog'
-    ? catalogEvents
-    : (compareData?.events ?? []);
+  // Resolved data bundle for the compare source
+  const { bundle: compareBundle, loading: compareBundleLoading } = useResolvedScenario(compareSource || 'baseline');
 
-  const compareEventAllocations: EventCostCenterAllocation[] = compareSource === 'catalog'
-    ? catalogEventAllocations
-    : (compareData?.eventAllocations ?? []);
+  const compareMembers = [...compareBundle.canonicalMembers, ...compareBundle.syntheticMembers];
+  const compareEvents = [
+    ...compareBundle.canonicalEvents,
+    ...compareBundle.scenarioEvents,
+  ] as MemberEvent[];
+  const compareEventAllocations = compareBundle.eventAllocations;
 
   const { yearlyView: compareYearlyView } = useHRPlanning(
     compareMembers,
@@ -111,17 +96,9 @@ export default function HRPlanningPage() {
     year
   );
 
-  useEffect(() => {
-    if (compareSource && compareSource !== 'catalog') {
-      fetchHRScenarioWithData(compareSource).then(setCompareData);
-    } else {
-      setCompareData(null);
-    }
-  }, [compareSource, fetchHRScenarioWithData]);
-
   // Event handlers
   const handleSaveEvent = async (input: MemberEventInput, cdcAllocations?: { cost_center_id: string; percentage: number }[]) => {
-    if (source === 'catalog') {
+    if (source === 'baseline') {
       if (editingEvent) {
         await updateEvent(editingEvent.id, input);
         if (input.field === 'cost_center_allocations' && cdcAllocations) {
@@ -168,33 +145,31 @@ export default function HRPlanningPage() {
           });
         }
       }
-      const refreshed = await fetchHRScenarioWithData(source);
-      setScenarioData(refreshed);
+      await fetchHRScenarioWithData(source);
     }
     setEditingEvent(null);
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    if (source === 'catalog') {
+  const handleDeleteEvent = useCallback(async (eventId: string) => {
+    if (source === 'baseline') {
       await deleteEvent(eventId);
     } else {
       await deleteScenarioEvent(eventId);
-      const refreshed = await fetchHRScenarioWithData(source);
-      setScenarioData(refreshed);
+      await fetchHRScenarioWithData(source);
     }
-  };
+  }, [source, deleteEvent, deleteScenarioEvent, fetchHRScenarioWithData]);
 
   const handleCreateScenario = async (name: string) => {
-    const scenario = await addHRScenario(name, catalogMembers, catalogEvents);
+    const scenario = await addHRScenario(name);
     setSource(scenario.id);
   };
 
   const handleDeleteScenario = async (id: string) => {
     await deleteHRScenario(id);
-    setSource('catalog');
+    setSource('baseline');
   };
 
-  const loading = membersLoading || settingsLoading || costCentersLoading || eventsLoading;
+  const loading = settingsLoading || costCentersLoading || eventsLoading || bundleLoading || compareBundleLoading;
   const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i);
 
   return (
@@ -288,8 +263,8 @@ export default function HRPlanningPage() {
                 <SelectValue placeholder="Select to compare" />
               </SelectTrigger>
               <SelectContent>
-                {source !== 'catalog' && (
-                  <SelectItem value="catalog">Catalogo</SelectItem>
+                {source !== 'baseline' && (
+                  <SelectItem value="baseline">Catalogo</SelectItem>
                 )}
                 {hrScenarios
                   .filter((s) => s.id !== source)
@@ -304,8 +279,8 @@ export default function HRPlanningPage() {
             <HRComparisonView
               baseView={yearlyView}
               compareView={compareYearlyView}
-              baseLabel={source === 'catalog' ? 'Catalogo' : (hrScenarios.find((s) => s.id === source)?.name ?? 'Scenario')}
-              compareLabel={compareSource === 'catalog' ? 'Catalogo' : (hrScenarios.find((s) => s.id === compareSource)?.name ?? 'Scenario')}
+              baseLabel={source === 'baseline' ? 'Catalogo' : (hrScenarios.find((s) => s.id === source)?.name ?? 'Scenario')}
+              compareLabel={compareSource === 'baseline' ? 'Catalogo' : (hrScenarios.find((s) => s.id === compareSource)?.name ?? 'Scenario')}
               costCenterId={cdcFilter}
             />
           )}

@@ -66,14 +66,14 @@ export function HRScenarioSelector({
           <SelectValue placeholder="Select source" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="catalog">Catalogo</SelectItem>
+          <SelectItem value="baseline">Catalogo</SelectItem>
           {hrScenarios.map((s) => (
             <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
           ))}
         </SelectContent>
       </Select>
 
-      {source !== 'catalog' && (
+      {source !== 'baseline' && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon">
