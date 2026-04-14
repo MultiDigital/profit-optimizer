@@ -27,9 +27,7 @@ export function InitialStateCard({ member, baseAllocations, costCenters }: Initi
   const memberAllocations = baseAllocations.filter((a) => a.member_id === member.id);
   const costCenterById = new Map(costCenters.map((cc) => [cc.id, cc]));
 
-  const capturedLabel = member.contract_start_date
-    ? `captured ${formatDate(member.contract_start_date)}`
-    : 'captured at creation';
+  const capturedLabel = 'initial values set at creation';
 
   return (
     <Card>
@@ -90,12 +88,4 @@ function FieldRow({ label, value }: { label: string; value: string }) {
       <span className="font-medium">{value}</span>
     </div>
   );
-}
-
-function formatDate(date: string): string {
-  return new Date(date + 'T00:00:00').toLocaleDateString('it-IT', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
 }
