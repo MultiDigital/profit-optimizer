@@ -674,4 +674,42 @@ describe('resolveMemberAtYear', () => {
     expect(snaps[9].isActive).toBe(false); // Oct 1: after end
     expect(snaps[11].isActive).toBe(false); // Dec: after end
   });
+
+  it('mid-month event start is visible only from the NEXT month snapshot', () => {
+    const m = makeMember({ salary: 40000 });
+    const events = [
+      makeMemberEvent({ field: 'salary', value: '45000', start_date: '2026-06-15' }),
+    ];
+    const snaps = resolveMemberAtYear(m, [], events, [], [], 2026);
+    // June snapshot is 2026-06-01, BEFORE the event start — sees old value
+    expect(snaps[5].salary).toBe(40000);
+    // July snapshot is 2026-07-01, AFTER the event start — sees new value
+    expect(snaps[6].salary).toBe(45000);
+  });
+
+  it('event starting on the 1st is visible in that same month snapshot', () => {
+    const m = makeMember({ salary: 40000 });
+    const events = [
+      makeMemberEvent({ field: 'salary', value: '45000', start_date: '2026-06-01' }),
+    ];
+    const snaps = resolveMemberAtYear(m, [], events, [], [], 2026);
+    // June snapshot sees the event (inclusive start_date)
+    expect(snaps[5].salary).toBe(45000);
+  });
+
+  it('event fully contained inside one month is invisible to snapshot semantics', () => {
+    const m = makeMember({ salary: 40000 });
+    const events = [
+      makeMemberEvent({
+        field: 'salary',
+        value: '99999',
+        start_date: '2026-06-10',
+        end_date: '2026-06-20',
+      }),
+    ];
+    const snaps = resolveMemberAtYear(m, [], events, [], [], 2026);
+    // June 1 is before start; July 1 is after end — event is never seen
+    expect(snaps[5].salary).toBe(40000);
+    expect(snaps[6].salary).toBe(40000);
+  });
 });

@@ -242,8 +242,17 @@ export function resolveMemberAtDate(
 }
 
 /**
- * Resolve 12 monthly snapshots for a member across a calendar year.
- * Each snapshot is resolved at the first day of the month.
+ * Resolve 12 point-in-time snapshots for a member across a calendar year,
+ * one per month, anchored at the 1st of each month.
+ *
+ * Semantics: each snapshot reflects the member's state AT that exact date.
+ * An event whose start_date falls mid-month (e.g., 2026-06-15) is NOT
+ * reflected until the NEXT month's snapshot (2026-07-01). This is
+ * "snapshot on the 1st" semantics, suitable for month-indexed views
+ * where a single column represents a single state.
+ *
+ * For aggregate monthly metrics (cost, capacity) that need to pro-rate
+ * partial months, use the month-range logic in `compute.ts` instead.
  */
 export function resolveMemberAtYear(
   member: Member,
