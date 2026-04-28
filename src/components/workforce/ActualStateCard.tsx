@@ -18,9 +18,11 @@ import { formatCurrency } from '@/lib/utils';
 interface ActualStateCardProps {
   resolved: ResolvedMember;
   costCenters: CostCenter[];
+  annualCost: number;
+  year: number;
 }
 
-export function ActualStateCard({ resolved, costCenters }: ActualStateCardProps) {
+export function ActualStateCard({ resolved, costCenters, annualCost, year }: ActualStateCardProps) {
   const costCenterById = new Map(costCenters.map((cc) => [cc.id, cc]));
 
   return (
@@ -43,6 +45,7 @@ export function ActualStateCard({ resolved, costCenters }: ActualStateCardProps)
           />
         )}
         <FieldRow label="Salary" value={formatCurrency(resolved.salary)} />
+        <FieldRow label={`Cost (${year})`} value={formatCurrency(annualCost)} />
         {resolved.category === 'dipendente' && (
           <FieldRow label="FT %" value={`${resolved.ft_percentage}%`} />
         )}
