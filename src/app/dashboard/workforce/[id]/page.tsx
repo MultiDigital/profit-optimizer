@@ -9,6 +9,7 @@ import { useResolvedScenario } from '@/hooks/useResolvedScenario';
 import { useCostCenters } from '@/hooks/useCostCenters';
 import { useMemberEvents } from '@/hooks/useMemberEvents';
 import { useHRScenarios } from '@/hooks/useHRScenarios';
+import { useSettings } from '@/hooks/useSettings';
 import { InitialStateCard } from '@/components/workforce/InitialStateCard';
 import { ActualStateCard } from '@/components/workforce/ActualStateCard';
 import { ScenarioOverlayPanel } from '@/components/workforce/ScenarioOverlayPanel';
@@ -31,6 +32,7 @@ import {
   MEMBER_CATEGORY_LABELS,
 } from '@/lib/optimizer/types';
 import { resolveMemberAtDate } from '@/lib/hr/resolve';
+import { computeMemberAnnualCost } from '@/lib/hr/compute';
 
 export default function EmployeePage() {
   const params = useParams();
@@ -39,6 +41,7 @@ export default function EmployeePage() {
   const { scenarioId } = useViewContext();
   const { bundle, loading: bundleLoading, refetch: refetchActive } = useResolvedScenario();
   const { costCenters } = useCostCenters();
+  const { settings } = useSettings();
 
   // Direct member-events hook for THIS employee (baseline authoring path)
   const {
@@ -95,6 +98,14 @@ export default function EmployeePage() {
       today,
     );
   }, [member, bundle.baseAllocations, canonicalEventsForMember, scenarioEventsForMember, bundle.eventAllocations]);
+
+  const year = new Date().getFullYear();
+
+  const annualCost = useMemo(() => {
+    if (!member) return 0;
+    const events = [...canonicalEventsForMember, ...scenarioEventsForMember];
+    return computeMemberAnnualCost(member as Member, events, settings, year);
+  }, [member, canonicalEventsForMember, scenarioEventsForMember, settings, year]);
 
   const handleSaveEvent = async (
     input: MemberEventInput,
@@ -228,7 +239,14 @@ export default function EmployeePage() {
         {/* Left column: Initial + Actual */}
         <div className="space-y-4">
           <InitialStateCard member={member as Member} baseAllocations={bundle.baseAllocations} costCenters={costCenters} />
-          {resolved && <ActualStateCard resolved={resolved} costCenters={costCenters} />}
+          {resolved && (
+            <ActualStateCard
+              resolved={resolved}
+              costCenters={costCenters}
+              annualCost={annualCost}
+              year={year}
+            />
+          )}
         </div>
 
         {/* Right column: canonical timeline + optional scenario overlay */}
