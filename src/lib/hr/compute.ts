@@ -423,10 +423,11 @@ export function computeMemberAnnualCost(
   settings: Settings | null,
   year: number,
 ): number {
+  const memberEvents = getEventsForMember(events, member);
   let total = 0;
   for (let m = 1; m <= 12; m++) {
     const month = `${year}-${String(m).padStart(2, '0')}`;
-    total += computeMemberMonth(member, events, settings, month).monthlyCost;
+    total += computeMemberMonth(member, memberEvents, settings, month).monthlyCost;
   }
   return total;
 }

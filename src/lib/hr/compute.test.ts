@@ -66,6 +66,7 @@ describe('computeMemberAnnualCost', () => {
       start_date: '2026-07-01',
     });
     const cost = computeMemberAnnualCost(member, [raise], null, 2026);
+    // Jan-Jun: 6 * 12000/12 = 6000; Jul-Dec: 6 * 24000/12 = 12000; total 18000
     expect(cost).toBeCloseTo(18000, 2);
   });
 
