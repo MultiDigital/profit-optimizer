@@ -407,3 +407,26 @@ export function computeYearlyView(
 
   return { year, annualTotals, monthlySnapshots };
 }
+
+/**
+ * Sum a single member's monthly cost across all 12 months of `year`,
+ * yielding their actual annual cost prorated by contract dates and any
+ * mid-year salary / FT% / category events.
+ *
+ * Re-uses `computeMemberMonth` so the result is the same number that
+ * contributes to this member in `computeMonthlySnapshot`'s
+ * `totalCompanyCost` for each month of the year.
+ */
+export function computeMemberAnnualCost(
+  member: AnyMember,
+  events: AnyEvent[],
+  settings: Settings | null,
+  year: number,
+): number {
+  let total = 0;
+  for (let m = 1; m <= 12; m++) {
+    const month = `${year}-${String(m).padStart(2, '0')}`;
+    total += computeMemberMonth(member, events, settings, month).monthlyCost;
+  }
+  return total;
+}
