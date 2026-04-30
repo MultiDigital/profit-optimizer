@@ -12,6 +12,15 @@ import {
   MEMBER_CATEGORY_LABELS,
   MemberCategory,
   CapacitySettings,
+  GENDERS,
+  GENDER_LABELS,
+  Gender,
+  CONTRACT_TYPES,
+  CONTRACT_TYPE_LABELS,
+  ContractType,
+  LIVELLI,
+  LIVELLO_LABELS,
+  Livello,
 } from '@/lib/optimizer/types';
 import {
   Button,
@@ -74,6 +83,9 @@ export function MemberList({ members, capacitySettings, upcomingCounts, onUpdate
         salary: editingMember.salary,
         chargeable_days: editingMember.chargeable_days ?? null,
         ft_percentage: editingMember.ft_percentage ?? 100,
+        gender: editingMember.gender ?? null,
+        contract_type: editingMember.contract_type ?? null,
+        livello: editingMember.livello ?? null,
         contract_start_date: editingMember.contract_start_date ?? null,
         contract_end_date: editingMember.contract_end_date ?? null,
       });
@@ -243,6 +255,72 @@ export function MemberList({ members, capacitySettings, upcomingCounts, onUpdate
                 min={0}
                 step={1000}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Gender</Label>
+              <Select
+                value={formData.gender ?? '_none'}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, gender: value === '_none' ? null : (value as Gender) })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Non specificato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Non specificato</SelectItem>
+                  {GENDERS.map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {GENDER_LABELS[g]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tipo di contratto</Label>
+              <Select
+                value={formData.contract_type ?? '_none'}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, contract_type: value === '_none' ? null : (value as ContractType) })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Non specificato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Non specificato</SelectItem>
+                  {CONTRACT_TYPES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {CONTRACT_TYPE_LABELS[c]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Livello</Label>
+              <Select
+                value={formData.livello ?? '_none'}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, livello: value === '_none' ? null : (value as Livello) })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Non specificato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Non specificato</SelectItem>
+                  {LIVELLI.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {LIVELLO_LABELS[l]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
