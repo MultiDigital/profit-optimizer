@@ -135,6 +135,9 @@ export function useScenarios() {
         salary: member.salary,
         chargeable_days: member.chargeable_days ?? null,
         ft_percentage: member.ft_percentage ?? 100,
+        gender: member.gender ?? null,
+        contract_type: member.contract_type ?? null,
+        livello: member.livello ?? null,
         capacity_percentage: capCost,
         cost_percentage: capCost,
       };
@@ -281,6 +284,9 @@ export function useScenarios() {
       category: catalogMember.category,
       seniority: catalogMember.seniority,
       salary: catalogMember.salary,
+      gender: catalogMember.gender ?? null,
+      contract_type: catalogMember.contract_type ?? null,
+      livello: catalogMember.livello ?? null,
     });
   }, [updateScenarioMember]);
 
@@ -389,6 +395,9 @@ export function useScenarios() {
           salary: m.salary,
           chargeable_days: m.chargeable_days ?? null,
           ft_percentage: m.ft_percentage ?? 100,
+          gender: m.gender ?? null,
+          contract_type: m.contract_type ?? null,
+          livello: m.livello ?? null,
           capacity_percentage: m.capacity_percentage,
           cost_percentage: m.cost_percentage,
         }));
