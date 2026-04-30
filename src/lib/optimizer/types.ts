@@ -32,6 +32,61 @@ export const SENIORITY_SHORT_LABELS: Record<SeniorityLevel, string> = {
   stage: 'Stg',
 };
 
+// Gender
+export type Gender = 'maschio' | 'femmina';
+
+export const GENDERS: Gender[] = ['maschio', 'femmina'];
+
+export const GENDER_LABELS: Record<Gender, string> = {
+  maschio: 'Maschio',
+  femmina: 'Femmina',
+};
+
+// Contract type
+export type ContractType =
+  | 'indeterminato'
+  | 'determinato'
+  | 'stage'
+  | 'prestazione_occasionale'
+  | 'piva'
+  | 'apprendistato'
+  | 'amministratore';
+
+export const CONTRACT_TYPES: ContractType[] = [
+  'indeterminato',
+  'determinato',
+  'stage',
+  'prestazione_occasionale',
+  'piva',
+  'apprendistato',
+  'amministratore',
+];
+
+export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
+  indeterminato: 'Indeterminato',
+  determinato: 'Determinato',
+  stage: 'Stage',
+  prestazione_occasionale: 'Prestazione occasionale',
+  piva: 'PIVA',
+  apprendistato: 'Apprendistato',
+  amministratore: 'Amministratore',
+};
+
+// Livello (CCNL level)
+export type Livello = '6' | '5' | '4' | '3' | '2' | '1' | 'Q';
+
+export const LIVELLI: Livello[] = ['6', '5', '4', '3', '2', '1', 'Q'];
+
+export const LIVELLO_LABELS: Record<Livello, string> = {
+  '6': '6',
+  '5': '5',
+  '4': '4',
+  '3': '3',
+  '2': '2',
+  '1': '1',
+  Q: 'Q',
+};
+
 // Database models
 export interface Member {
   id: string;
