@@ -254,16 +254,16 @@ export function WorkforceCard({
                 <div className="space-y-2">
                   <Label>Gender</Label>
                   <Select
-                    value={formData.gender ?? ''}
+                    value={formData.gender ?? '_none'}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, gender: value === '' ? null : (value as Gender) })
+                      setFormData({ ...formData, gender: value === '_none' ? null : (value as Gender) })
                     }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Non specificato" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Non specificato</SelectItem>
+                      <SelectItem value="_none">Non specificato</SelectItem>
                       {GENDERS.map((g) => (
                         <SelectItem key={g} value={g}>
                           {GENDER_LABELS[g]}
@@ -276,16 +276,16 @@ export function WorkforceCard({
                 <div className="space-y-2">
                   <Label>Tipo di contratto</Label>
                   <Select
-                    value={formData.contract_type ?? ''}
+                    value={formData.contract_type ?? '_none'}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, contract_type: value === '' ? null : (value as ContractType) })
+                      setFormData({ ...formData, contract_type: value === '_none' ? null : (value as ContractType) })
                     }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Non specificato" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Non specificato</SelectItem>
+                      <SelectItem value="_none">Non specificato</SelectItem>
                       {CONTRACT_TYPES.map((c) => (
                         <SelectItem key={c} value={c}>
                           {CONTRACT_TYPE_LABELS[c]}
@@ -298,16 +298,16 @@ export function WorkforceCard({
                 <div className="space-y-2">
                   <Label>Livello</Label>
                   <Select
-                    value={formData.livello ?? ''}
+                    value={formData.livello ?? '_none'}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, livello: value === '' ? null : (value as Livello) })
+                      setFormData({ ...formData, livello: value === '_none' ? null : (value as Livello) })
                     }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Non specificato" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Non specificato</SelectItem>
+                      <SelectItem value="_none">Non specificato</SelectItem>
                       {LIVELLI.map((l) => (
                         <SelectItem key={l} value={l}>
                           {LIVELLO_LABELS[l]}
