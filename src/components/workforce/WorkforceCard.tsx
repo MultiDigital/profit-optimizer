@@ -35,6 +35,15 @@ import {
   MemberCategory,
   CapacitySettings,
   CostCenter,
+  GENDERS,
+  GENDER_LABELS,
+  Gender,
+  CONTRACT_TYPES,
+  CONTRACT_TYPE_LABELS,
+  ContractType,
+  LIVELLI,
+  LIVELLO_LABELS,
+  Livello,
 } from '@/lib/optimizer/types';
 import { InitialCdcInput } from './InitialCdcInput';
 
@@ -240,6 +249,72 @@ export function WorkforceCard({
                     min={0}
                     step={1000}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Gender</Label>
+                  <Select
+                    value={formData.gender ?? ''}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, gender: value === '' ? null : (value as Gender) })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Non specificato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Non specificato</SelectItem>
+                      {GENDERS.map((g) => (
+                        <SelectItem key={g} value={g}>
+                          {GENDER_LABELS[g]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tipo di contratto</Label>
+                  <Select
+                    value={formData.contract_type ?? ''}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, contract_type: value === '' ? null : (value as ContractType) })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Non specificato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Non specificato</SelectItem>
+                      {CONTRACT_TYPES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {CONTRACT_TYPE_LABELS[c]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Livello</Label>
+                  <Select
+                    value={formData.livello ?? ''}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, livello: value === '' ? null : (value as Livello) })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Non specificato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Non specificato</SelectItem>
+                      {LIVELLI.map((l) => (
+                        <SelectItem key={l} value={l}>
+                          {LIVELLO_LABELS[l]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
