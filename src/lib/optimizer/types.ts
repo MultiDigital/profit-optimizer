@@ -98,6 +98,9 @@ export interface Member {
   salary: number;
   chargeable_days?: number | null;
   ft_percentage?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
   contract_start_date: string | null;
   contract_end_date: string | null;
   created_at?: string;
@@ -144,6 +147,9 @@ export interface MemberInput {
   salary: number;
   chargeable_days?: number | null;
   ft_percentage?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
   contract_start_date?: string | null;
   contract_end_date?: string | null;
 }
@@ -263,6 +269,9 @@ export const DEFAULT_MEMBER: MemberInput = {
   salary: 50000,
   chargeable_days: null,
   ft_percentage: 100,
+  gender: null,
+  contract_type: null,
+  livello: null,
   contract_start_date: null,
   contract_end_date: null,
 };
@@ -336,6 +345,9 @@ export interface ScenarioMemberData {
   salary: number;
   chargeable_days?: number | null;
   ft_percentage?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
   capacity_percentage: number; // percentage (1-100), scales available capacity/days
   cost_percentage: number; // percentage (1-100), scales salary cost contribution
   created_at?: string;
@@ -369,6 +381,9 @@ export interface ScenarioMemberDataInput {
   salary: number;
   chargeable_days?: number | null;
   ft_percentage?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
   capacity_percentage?: number; // percentage (1-100), defaults to 100
   cost_percentage?: number; // percentage (1-100), defaults to 100
 }
@@ -464,6 +479,9 @@ export interface HRScenarioMember {
   salary: number;
   ft_percentage: number;
   chargeable_days: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
   capacity_percentage: number;
   cost_percentage: number;
   contract_start_date: string | null;
@@ -480,6 +498,9 @@ export interface HRScenarioMemberInput {
   salary: number;
   ft_percentage?: number;
   chargeable_days?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
   capacity_percentage?: number;
   cost_percentage?: number;
   contract_start_date?: string | null;
