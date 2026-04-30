@@ -14,6 +14,9 @@ import {
   SENIORITY_LABELS,
   MEMBER_CATEGORY_LABELS,
   SeniorityLevel,
+  GENDER_LABELS,
+  CONTRACT_TYPE_LABELS,
+  LIVELLO_LABELS,
 } from '@/lib/optimizer/types';
 import { formatCurrency } from '@/lib/utils';
 
@@ -47,6 +50,18 @@ export function InitialStateCard({ member, baseAllocations, costCenters }: Initi
           />
         )}
         <FieldRow label="Salary" value={formatCurrency(member.salary)} />
+        <FieldRow
+          label="Gender"
+          value={member.gender ? GENDER_LABELS[member.gender] : '—'}
+        />
+        <FieldRow
+          label="Tipo contratto"
+          value={member.contract_type ? CONTRACT_TYPE_LABELS[member.contract_type] : '—'}
+        />
+        <FieldRow
+          label="Livello"
+          value={member.livello ? LIVELLO_LABELS[member.livello] : '—'}
+        />
         {member.category === 'dipendente' && (
           <FieldRow label="FT %" value={`${member.ft_percentage ?? 100}%`} />
         )}
