@@ -203,7 +203,16 @@ export function AllocationMatrix({
                       className="text-center p-1"
                     >
                       {isReadOnly ? (
-                        <span>{pct > 0 ? `${pct}%` : '—'}</span>
+                        pct > 0 ? (
+                          <span className="flex flex-col leading-tight">
+                            <span>{pct}%</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {formatCurrency(Math.round(member.salary * (pct / 100)))}
+                            </span>
+                          </span>
+                        ) : (
+                          <span>—</span>
+                        )
                       ) : isEditing ? (
                         <Input
                           type="number"

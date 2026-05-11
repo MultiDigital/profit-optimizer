@@ -1,21 +1,40 @@
 /**
- * Shape of the persisted view state (year + scenario selection).
- * Versioning: no version field today. If the shape changes, bump the
- * localStorage key instead of migrating.
+ * Shape of the persisted view state (as-of date + scenario selection).
+ * Versioning: no version field in the payload. If the shape changes, bump
+ * the localStorage key instead of migrating.
  */
 export interface StoredView {
-  year: number;
+  asOfDate: string; // ISO YYYY-MM-DD
   scenarioId: string; // 'baseline' or an HR scenario UUID
 }
 
 /**
- * Clamp a year to [min, max]. NaN maps to min.
+ * Date bounds for the as-of date picker: [current year - 1 start, current year + 4 end].
+ * Pinned at import time — acceptable because the app reloads on day change,
+ * matching the precedent established by the former YEAR_MIN/YEAR_MAX.
  */
-export function clampYear(year: number, min: number, max: number): number {
-  if (!Number.isFinite(year)) return min;
-  if (year < min) return min;
-  if (year > max) return max;
-  return year;
+const NOW_YEAR = new Date().getFullYear();
+export const AS_OF_DATE_MIN = `${NOW_YEAR - 1}-01-01`;
+export const AS_OF_DATE_MAX = `${NOW_YEAR + 4}-12-31`;
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isIsoDate(value: string): boolean {
+  if (!ISO_DATE_RE.test(value)) return false;
+  const d = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return false;
+  return d.toISOString().slice(0, 10) === value;
+}
+
+/**
+ * Clamp an ISO YYYY-MM-DD string to [min, max]. Malformed input maps to min.
+ * String comparison is safe for ISO dates (lexical order == chronological order).
+ */
+export function clampAsOfDate(date: string, min: string, max: string): string {
+  if (typeof date !== 'string' || !isIsoDate(date)) return min;
+  if (date < min) return min;
+  if (date > max) return max;
+  return date;
 }
 
 /**
@@ -32,7 +51,7 @@ export function parseStoredView(raw: string | null): StoredView | null {
   }
   if (parsed === null || typeof parsed !== 'object') return null;
   const obj = parsed as Record<string, unknown>;
-  if (typeof obj.year !== 'number') return null;
+  if (typeof obj.asOfDate !== 'string' || !isIsoDate(obj.asOfDate)) return null;
   if (typeof obj.scenarioId !== 'string') return null;
-  return { year: obj.year, scenarioId: obj.scenarioId };
+  return { asOfDate: obj.asOfDate, scenarioId: obj.scenarioId };
 }

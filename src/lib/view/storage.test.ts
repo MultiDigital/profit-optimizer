@@ -1,21 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { clampYear, parseStoredView } from './storage';
+import { clampAsOfDate, parseStoredView } from './storage';
 
-describe('clampYear', () => {
+describe('clampAsOfDate', () => {
   it('returns input when inside [min, max]', () => {
-    expect(clampYear(2026, 2025, 2030)).toBe(2026);
+    expect(clampAsOfDate('2026-04-21', '2025-01-01', '2030-12-31')).toBe('2026-04-21');
   });
 
   it('clamps below min to min', () => {
-    expect(clampYear(2020, 2025, 2030)).toBe(2025);
+    expect(clampAsOfDate('2020-05-01', '2025-01-01', '2030-12-31')).toBe('2025-01-01');
   });
 
   it('clamps above max to max', () => {
-    expect(clampYear(2040, 2025, 2030)).toBe(2030);
+    expect(clampAsOfDate('2040-07-15', '2025-01-01', '2030-12-31')).toBe('2030-12-31');
   });
 
-  it('returns min when value is NaN', () => {
-    expect(clampYear(Number.NaN, 2025, 2030)).toBe(2025);
+  it('returns min when value is malformed', () => {
+    expect(clampAsOfDate('not a date', '2025-01-01', '2030-12-31')).toBe('2025-01-01');
+    expect(clampAsOfDate('2026-13-01', '2025-01-01', '2030-12-31')).toBe('2025-01-01');
+    expect(clampAsOfDate('2026-02-30', '2025-01-01', '2030-12-31')).toBe('2025-01-01');
+    expect(clampAsOfDate('', '2025-01-01', '2030-12-31')).toBe('2025-01-01');
+  });
+
+  it('accepts boundary values', () => {
+    expect(clampAsOfDate('2025-01-01', '2025-01-01', '2030-12-31')).toBe('2025-01-01');
+    expect(clampAsOfDate('2030-12-31', '2025-01-01', '2030-12-31')).toBe('2030-12-31');
   });
 });
 
@@ -29,26 +37,49 @@ describe('parseStoredView', () => {
   });
 
   it('parses a valid payload', () => {
-    expect(parseStoredView('{"year":2026,"scenarioId":"baseline"}')).toEqual({
-      year: 2026,
+    expect(
+      parseStoredView('{"asOfDate":"2026-04-21","scenarioId":"baseline"}'),
+    ).toEqual({
+      asOfDate: '2026-04-21',
       scenarioId: 'baseline',
     });
   });
 
-  it('returns null when year is missing or wrong type', () => {
+  it('returns null when asOfDate is missing or wrong type', () => {
     expect(parseStoredView('{"scenarioId":"baseline"}')).toBeNull();
-    expect(parseStoredView('{"year":"2026","scenarioId":"baseline"}')).toBeNull();
+    expect(parseStoredView('{"asOfDate":2026,"scenarioId":"baseline"}')).toBeNull();
+  });
+
+  it('returns null when asOfDate is malformed', () => {
+    expect(
+      parseStoredView('{"asOfDate":"2026/04/21","scenarioId":"baseline"}'),
+    ).toBeNull();
+    expect(
+      parseStoredView('{"asOfDate":"21-04-2026","scenarioId":"baseline"}'),
+    ).toBeNull();
+    expect(
+      parseStoredView('{"asOfDate":"2026-02-30","scenarioId":"baseline"}'),
+    ).toBeNull();
   });
 
   it('returns null when scenarioId is missing or wrong type', () => {
-    expect(parseStoredView('{"year":2026}')).toBeNull();
-    expect(parseStoredView('{"year":2026,"scenarioId":42}')).toBeNull();
+    expect(parseStoredView('{"asOfDate":"2026-04-21"}')).toBeNull();
+    expect(
+      parseStoredView('{"asOfDate":"2026-04-21","scenarioId":42}'),
+    ).toBeNull();
   });
 
-  it('rejects extra/unknown shape cleanly (forward-compat)', () => {
-    // Future versions may add keys; unknown keys are fine as long as required keys are present.
-    expect(parseStoredView('{"year":2026,"scenarioId":"baseline","extra":true}')).toEqual({
-      year: 2026,
+  it('rejects stale v1 payload (year-based)', () => {
+    expect(parseStoredView('{"year":2026,"scenarioId":"baseline"}')).toBeNull();
+  });
+
+  it('accepts extra/unknown keys cleanly (forward-compat)', () => {
+    expect(
+      parseStoredView(
+        '{"asOfDate":"2026-04-21","scenarioId":"baseline","extra":true}',
+      ),
+    ).toEqual({
+      asOfDate: '2026-04-21',
       scenarioId: 'baseline',
     });
   });
