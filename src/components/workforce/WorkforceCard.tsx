@@ -34,13 +34,29 @@ import {
   MEMBER_CATEGORY_LABELS,
   MemberCategory,
   CapacitySettings,
+  CostCenter,
+  GENDERS,
+  GENDER_LABELS,
+  Gender,
+  CONTRACT_TYPES,
+  CONTRACT_TYPE_LABELS,
+  ContractType,
+  LIVELLI,
+  LIVELLO_LABELS,
+  Livello,
 } from '@/lib/optimizer/types';
+import { InitialCdcInput } from './InitialCdcInput';
 
 interface WorkforceCardProps {
   members: Member[];
   loading?: boolean;
   capacitySettings: CapacitySettings;
-  onAddMember: (input: MemberInput) => Promise<void>;
+  upcomingCounts: Map<string, number>;
+  costCenters: CostCenter[];
+  onAddMember: (
+    input: MemberInput,
+    cdcAllocations?: { cost_center_id: string; percentage: number }[],
+  ) => Promise<void>;
   onUpdateMember: (id: string, input: Partial<MemberInput>) => Promise<void>;
   onDeleteMember: (id: string) => Promise<void>;
 }
@@ -49,6 +65,8 @@ export function WorkforceCard({
   members,
   loading,
   capacitySettings,
+  upcomingCounts,
+  costCenters,
   onAddMember,
   onUpdateMember,
   onDeleteMember,
@@ -57,9 +75,11 @@ export function WorkforceCard({
   const [formData, setFormData] = useState<MemberInput>(DEFAULT_MEMBER);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [initialCdc, setInitialCdc] = useState<Record<string, number>>({});
 
   const resetForm = () => {
     setFormData(DEFAULT_MEMBER);
+    setInitialCdc({});
     setError(null);
   };
 
@@ -81,9 +101,21 @@ export function WorkforceCard({
       return;
     }
 
+    const cdcTotal = Object.values(initialCdc).reduce((s, n) => s + n, 0);
+    // Use a small epsilon tolerance so 33.3/33.3/33.3 = 99.9 still validates.
+    const isZero = Math.abs(cdcTotal) < 0.01;
+    const isHundred = Math.abs(cdcTotal - 100) < 0.01;
+    if (!isZero && !isHundred) {
+      setError('Cost center allocation must total 0% (skip) or 100%.');
+      return;
+    }
+
     setSaving(true);
     try {
-      await onAddMember(formData);
+      const cdcAllocs = Object.entries(initialCdc)
+        .filter(([, pct]) => pct > 0)
+        .map(([cost_center_id, percentage]) => ({ cost_center_id, percentage }));
+      await onAddMember(formData, cdcAllocs.length > 0 ? cdcAllocs : undefined);
       setIsOpen(false);
       resetForm();
     } finally {
@@ -218,6 +250,96 @@ export function WorkforceCard({
                     step={1000}
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Gender</Label>
+                  <Select
+                    value={formData.gender ?? '_none'}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, gender: value === '_none' ? null : (value as Gender) })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Non specificato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">Non specificato</SelectItem>
+                      {GENDERS.map((g) => (
+                        <SelectItem key={g} value={g}>
+                          {GENDER_LABELS[g]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tipo di contratto</Label>
+                  <Select
+                    value={formData.contract_type ?? '_none'}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, contract_type: value === '_none' ? null : (value as ContractType) })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Non specificato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">Non specificato</SelectItem>
+                      {CONTRACT_TYPES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {CONTRACT_TYPE_LABELS[c]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Livello</Label>
+                  <Select
+                    value={formData.livello ?? '_none'}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, livello: value === '_none' ? null : (value as Livello) })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Non specificato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">Non specificato</SelectItem>
+                      {LIVELLI.map((l) => (
+                        <SelectItem key={l} value={l}>
+                          {LIVELLO_LABELS[l]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>Contract Start</Label>
+                    <Input
+                      type="date"
+                      value={formData.contract_start_date || ''}
+                      onChange={(e) => setFormData({ ...formData, contract_start_date: e.target.value || null })}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Contract End</Label>
+                    <Input
+                      type="date"
+                      value={formData.contract_end_date || ''}
+                      onChange={(e) => setFormData({ ...formData, contract_end_date: e.target.value || null })}
+                    />
+                  </div>
+                </div>
+                <InitialCdcInput
+                  costCenters={costCenters}
+                  value={initialCdc}
+                  onChange={setInitialCdc}
+                />
               </div>
 
               <DialogFooter>
@@ -243,6 +365,7 @@ export function WorkforceCard({
           <MemberList
             members={members}
             capacitySettings={capacitySettings}
+            upcomingCounts={upcomingCounts}
             onUpdate={onUpdateMember}
             onDelete={onDeleteMember}
           />

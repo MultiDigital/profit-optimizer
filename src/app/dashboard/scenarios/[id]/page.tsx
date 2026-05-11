@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useSettings, useMembers, useServices, useScenarios, useOptimizer, useCostCenters } from '@/hooks';
 import { ResultsCard } from '@/components/results';
+import { HRScenarioKPIs } from '@/components/hr/HRScenarioKPIs';
 import { ScenarioDialog } from '@/components/scenarios';
 import { ScenarioMembersDataTable } from '@/components/scenarios/scenario-members-data-table';
 import { createColumns as createMemberColumns } from '@/components/scenarios/scenario-members-columns';
@@ -370,6 +371,8 @@ export default function ScenarioViewPage() {
 
         {/* Results first */}
         <ResultsCard result={result} isCalculating={isCalculating} />
+
+        <HRScenarioKPIs members={scenario.members} settings={settings} />
 
         {/* Inputs in tabs */}
         <Card>

@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
+import { ViewProvider } from '@/contexts/ViewContext';
+import { DashboardTopBar } from './shell/DashboardTopBar';
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -20,11 +22,14 @@ export function DashboardShell({ children }: DashboardShellProps) {
   };
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      <AppSidebar onSignOut={handleSignOut} />
-      <SidebarInset>
-        {children}
-      </SidebarInset>
-    </SidebarProvider>
+    <ViewProvider>
+      <SidebarProvider defaultOpen={true}>
+        <AppSidebar onSignOut={handleSignOut} />
+        <SidebarInset>
+          <DashboardTopBar />
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
+    </ViewProvider>
   );
 }

@@ -32,6 +32,61 @@ export const SENIORITY_SHORT_LABELS: Record<SeniorityLevel, string> = {
   stage: 'Stg',
 };
 
+// Gender
+export type Gender = 'maschio' | 'femmina';
+
+export const GENDERS: Gender[] = ['maschio', 'femmina'];
+
+export const GENDER_LABELS: Record<Gender, string> = {
+  maschio: 'Maschio',
+  femmina: 'Femmina',
+};
+
+// Contract type
+export type ContractType =
+  | 'indeterminato'
+  | 'determinato'
+  | 'stage'
+  | 'prestazione_occasionale'
+  | 'piva'
+  | 'apprendistato'
+  | 'amministratore';
+
+export const CONTRACT_TYPES: ContractType[] = [
+  'indeterminato',
+  'determinato',
+  'stage',
+  'prestazione_occasionale',
+  'piva',
+  'apprendistato',
+  'amministratore',
+];
+
+export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
+  indeterminato: 'Indeterminato',
+  determinato: 'Determinato',
+  stage: 'Stage',
+  prestazione_occasionale: 'Prestazione occasionale',
+  piva: 'PIVA',
+  apprendistato: 'Apprendistato',
+  amministratore: 'Amministratore',
+};
+
+// Livello (CCNL level)
+export type Livello = '6' | '5' | '4' | '3' | '2' | '1' | 'Q';
+
+export const LIVELLI: Livello[] = ['6', '5', '4', '3', '2', '1', 'Q'];
+
+export const LIVELLO_LABELS: Record<Livello, string> = {
+  '6': '6',
+  '5': '5',
+  '4': '4',
+  '3': '3',
+  '2': '2',
+  '1': '1',
+  Q: 'Q',
+};
+
 // Database models
 export interface Member {
   id: string;
@@ -43,6 +98,11 @@ export interface Member {
   salary: number;
   chargeable_days?: number | null;
   ft_percentage?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
+  contract_start_date: string | null;
+  contract_end_date: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -87,6 +147,11 @@ export interface MemberInput {
   salary: number;
   chargeable_days?: number | null;
   ft_percentage?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
+  contract_start_date?: string | null;
+  contract_end_date?: string | null;
 }
 
 export interface ServiceInput {
@@ -204,6 +269,11 @@ export const DEFAULT_MEMBER: MemberInput = {
   salary: 50000,
   chargeable_days: null,
   ft_percentage: 100,
+  gender: null,
+  contract_type: null,
+  livello: null,
+  contract_start_date: null,
+  contract_end_date: null,
 };
 
 export const DEFAULT_SERVICE: ServiceInput = {
@@ -240,6 +310,14 @@ export interface MemberCostCenterAllocation {
   updated_at?: string;
 }
 
+export interface EventCostCenterAllocation {
+  id: string;
+  member_event_id: string | null;
+  scenario_member_event_id: string | null;
+  cost_center_id: string;
+  percentage: number;
+}
+
 // Scenario types
 export interface Scenario {
   id: string;
@@ -267,6 +345,9 @@ export interface ScenarioMemberData {
   salary: number;
   chargeable_days?: number | null;
   ft_percentage?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
   capacity_percentage: number; // percentage (1-100), scales available capacity/days
   cost_percentage: number; // percentage (1-100), scales salary cost contribution
   created_at?: string;
@@ -300,6 +381,9 @@ export interface ScenarioMemberDataInput {
   salary: number;
   chargeable_days?: number | null;
   ft_percentage?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
   capacity_percentage?: number; // percentage (1-100), defaults to 100
   cost_percentage?: number; // percentage (1-100), defaults to 100
 }
@@ -344,4 +428,161 @@ export interface CapacitySettings {
   ferie: number;
   malattia: number;
   formazione: number;
+}
+
+// ─── HR Planning Types ───────────────────────────────────────────────
+
+export type MemberEventField = 'salary' | 'ft_percentage' | 'seniority' | 'category' | 'capacity_percentage' | 'chargeable_days' | 'cost_center_allocations';
+
+export interface MemberEvent {
+  id: string;
+  user_id: string;
+  member_id: string;
+  field: MemberEventField;
+  value: string;
+  start_date: string;
+  end_date: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface MemberEventInput {
+  member_id: string;
+  field: MemberEventField;
+  value: string;
+  start_date: string;
+  end_date?: string | null;
+  note?: string | null;
+}
+
+export interface HRScenario {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HRScenarioInput {
+  name: string;
+}
+
+export interface HRScenarioMember {
+  id: string;
+  user_id: string;
+  hr_scenario_id: string;
+  source_member_id: string | null;
+  first_name: string;
+  last_name: string;
+  category: 'dipendente' | 'segnalatore' | 'freelance';
+  seniority: SeniorityLevel | null;
+  salary: number;
+  ft_percentage: number;
+  chargeable_days: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
+  capacity_percentage: number;
+  cost_percentage: number;
+  contract_start_date: string | null;
+  contract_end_date: string | null;
+  is_synthetic: boolean;
+  created_at: string;
+}
+
+export interface HRScenarioMemberInput {
+  first_name: string;
+  last_name: string;
+  category: 'dipendente' | 'segnalatore' | 'freelance';
+  seniority?: SeniorityLevel | null;
+  salary: number;
+  ft_percentage?: number;
+  chargeable_days?: number | null;
+  gender?: Gender | null;
+  contract_type?: ContractType | null;
+  livello?: Livello | null;
+  capacity_percentage?: number;
+  cost_percentage?: number;
+  contract_start_date?: string | null;
+  contract_end_date?: string | null;
+}
+
+export interface ScenarioMemberEvent {
+  id: string;
+  user_id: string;
+  hr_scenario_id: string;
+  // Exactly one of these two FKs is populated (CHECK constraint enforces it):
+  // - `member_id` when the event overrides a canonical employee's timeline.
+  // - `scenario_member_id` when the event belongs to a synthetic (scenario-only) employee.
+  scenario_member_id: string | null;
+  member_id: string | null;
+  field: MemberEventField;
+  value: string;
+  start_date: string;
+  end_date: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface ScenarioMemberEventInput {
+  hr_scenario_id: string;
+  // Exactly one of these two must be set by the caller.
+  scenario_member_id?: string | null;
+  member_id?: string | null;
+  field: MemberEventField;
+  value: string;
+  start_date: string;
+  end_date?: string | null;
+  note?: string | null;
+}
+
+export interface MonthlySnapshot {
+  month: string;
+  totalCompanyCost: number;
+  personnelCostBySeniority: Record<SeniorityLevel, number>;
+  personnelCostByCostCenter: Record<string, number>;
+  productiveCapacity: number;
+  capacityBySeniority: Record<SeniorityLevel, number>;
+  fte: number;
+  headcount: number;
+  avgHourlyCostBySeniority: Record<SeniorityLevel, number>;
+  costCenterBreakdown: Record<string, number>;
+  capacityByCostCenter: Record<string, number>;
+  fteByCostCenter: Record<string, number>;
+  headcountByCostCenter: Record<string, number>;
+  memberDetails: MemberMonthDetail[];
+}
+
+export interface MemberMonthDetail {
+  memberId: string;
+  firstName: string;
+  lastName: string;
+  effectiveSeniority: SeniorityLevel | null;
+  effectiveSalary: number;
+  effectiveFtPercentage: number;
+  effectiveCategory: 'dipendente' | 'segnalatore' | 'freelance';
+  monthlyCost: number;
+  monthlyCapacity: number;
+  fte: number;
+  isActive: boolean;
+  activeEvents: MemberEvent[] | ScenarioMemberEvent[];
+}
+
+export interface YearlyView {
+  year: number;
+  annualTotals: {
+    totalCompanyCost: number;
+    personnelCostBySeniority: Record<SeniorityLevel, number>;
+    personnelCostByCostCenter: Record<string, number>;
+    productiveCapacity: number;
+    capacityBySeniority: Record<SeniorityLevel, number>;
+    fte: number;
+    headcount: number;
+    avgHourlyCostBySeniority: Record<SeniorityLevel, number>;
+    costCenterBreakdown: Record<string, number>;
+    capacityByCostCenter: Record<string, number>;
+    fteByCostCenter: Record<string, number>;
+    headcountByCostCenter: Record<string, number>;
+  };
+  monthlySnapshots: MonthlySnapshot[];
 }

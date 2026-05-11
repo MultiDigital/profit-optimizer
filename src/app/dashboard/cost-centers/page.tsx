@@ -2,17 +2,21 @@
 
 import { useState, useMemo } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { useMembers, useCostCenters, useSettings } from '@/hooks';
+import { useCostCenters, useSettings } from '@/hooks';
 import { AllocationMatrix, CostCenterDialog } from '@/components/cost-centers';
+import { useViewContext } from '@/contexts/ViewContext';
+import { useResolvedScenario } from '@/hooks/useResolvedScenario';
+import { resolveWorkforceAtDate } from '@/lib/hr/resolve';
+import type { ResolvedMember } from '@/lib/hr/types';
+import { DeltaCell } from '@/components/analytics/DeltaCell';
 import {
   CostCenter,
   DEFAULT_SETTINGS,
   Member,
-  MemberCostCenterAllocation,
-  SeniorityLevel,
   SENIORITY_LEVELS,
   SENIORITY_LABELS,
   MEMBER_CATEGORY_LABELS,
+  SeniorityLevel,
   computeEffectiveDays,
 } from '@/lib/optimizer/types';
 import {
@@ -67,27 +71,21 @@ interface CostCenterSummary {
 }
 
 function computeCostSummary(
-  members: Member[],
+  resolvedMembers: ResolvedMember[],
   costCenters: CostCenter[],
-  allocations: MemberCostCenterAllocation[],
   effectiveDays: number,
-  yearlyWorkableDays: number
+  yearlyWorkableDays: number,
 ): CostCenterSummary[] {
-  const allocMap = new Map<string, Map<string, number>>();
-  for (const a of allocations) {
-    if (!allocMap.has(a.member_id)) allocMap.set(a.member_id, new Map());
-    allocMap.get(a.member_id)!.set(a.cost_center_id, a.percentage);
-  }
-
   const groups: CostCenterSummary[] = [];
 
   for (const cc of costCenters) {
     const rowMap = new Map<string, CostRow>();
 
-    for (const m of members) {
-      const allocPct = allocMap.get(m.id)?.get(cc.id) ?? 0;
-      if (allocPct === 0) continue;
-      const allocFraction = allocPct / 100;
+    for (const m of resolvedMembers) {
+      if (!m.isActive) continue;
+      const alloc = m.costCenterAllocations.find((a) => a.cost_center_id === cc.id);
+      if (!alloc || alloc.percentage === 0) continue;
+      const allocFraction = alloc.percentage / 100;
 
       let label: string;
       let memberFte: number;
@@ -113,7 +111,6 @@ function computeCostSummary(
       rowMap.set(label, existing);
     }
 
-    // Sort: seniority levels first (in order), then Segnalatore
     const seniorityOrder = SENIORITY_LEVELS.map((s) => SENIORITY_LABELS[s]);
     const rows = Array.from(rowMap.values()).sort((a, b) => {
       const ai = seniorityOrder.indexOf(a.label);
@@ -137,23 +134,22 @@ function computeCostSummary(
 // --- Page component ---
 
 export default function CostCentersPage() {
-  const { members, loading: membersLoading } = useMembers();
+  const { asOfDate, compareDate } = useViewContext();
+  const { bundle, loading: scenarioLoading } = useResolvedScenario();
   const { settings } = useSettings();
   const {
     costCenters,
-    allocations,
     loading: ccLoading,
     addCostCenter,
     updateCostCenter,
     deleteCostCenter,
-    setAllocation,
   } = useCostCenters();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingCc, setEditingCc] = useState<CostCenter | null>(null);
   const [deletingCc, setDeletingCc] = useState<CostCenter | null>(null);
 
-  const loading = membersLoading || ccLoading;
+  const loading = scenarioLoading || ccLoading;
 
   const s = settings ?? DEFAULT_SETTINGS;
   const effectiveDays = computeEffectiveDays(
@@ -161,12 +157,60 @@ export default function CostCentersPage() {
     s.festivita_nazionali,
     s.ferie,
     s.malattia,
-    s.formazione
+    s.formazione,
   );
 
+  // Resolve workforce at the selected as-of date.
+  const resolved = useMemo(() => {
+    const allMembers = [...bundle.canonicalMembers, ...bundle.syntheticMembers];
+    return resolveWorkforceAtDate(
+      allMembers,
+      bundle.baseAllocations,
+      bundle.canonicalEvents,
+      bundle.scenarioEvents,
+      bundle.eventAllocations,
+      asOfDate,
+    );
+  }, [bundle, asOfDate]);
+
+  // When compare mode is on, resolve a second snapshot at the compare date.
+  const resolvedCompare = useMemo(() => {
+    if (!compareDate) return null;
+    const allMembers = [...bundle.canonicalMembers, ...bundle.syntheticMembers];
+    return resolveWorkforceAtDate(
+      allMembers,
+      bundle.baseAllocations,
+      bundle.canonicalEvents,
+      bundle.scenarioEvents,
+      bundle.eventAllocations,
+      compareDate,
+    );
+  }, [bundle, compareDate]);
+
+  const resolvedByMember = useMemo(() => {
+    const map = new Map<string, ResolvedMember>();
+    for (const m of resolved) map.set(m.id, m);
+    return map;
+  }, [resolved]);
+
+  const resolveCellPercentage = (memberId: string, costCenterId: string): number => {
+    const m = resolvedByMember.get(memberId);
+    if (!m) return 0;
+    const alloc = m.costCenterAllocations.find((a) => a.cost_center_id === costCenterId);
+    return alloc?.percentage ?? 0;
+  };
+
   const summaryGroups = useMemo(
-    () => computeCostSummary(members, costCenters, allocations, effectiveDays, s.yearly_workable_days),
-    [members, costCenters, allocations, effectiveDays, s.yearly_workable_days]
+    () => computeCostSummary(resolved, costCenters, effectiveDays, s.yearly_workable_days),
+    [resolved, costCenters, effectiveDays, s.yearly_workable_days],
+  );
+
+  const summaryGroupsCompare = useMemo(
+    () =>
+      resolvedCompare
+        ? computeCostSummary(resolvedCompare, costCenters, effectiveDays, s.yearly_workable_days)
+        : null,
+    [resolvedCompare, costCenters, effectiveDays, s.yearly_workable_days],
   );
 
   const grandTotal = useMemo(
@@ -174,8 +218,32 @@ export default function CostCentersPage() {
       fte: summaryGroups.reduce((s, g) => s + g.totalFte, 0),
       totalCost: summaryGroups.reduce((s, g) => s + g.totalCost, 0),
     }),
-    [summaryGroups]
+    [summaryGroups],
   );
+
+  const grandTotalCompare = useMemo(() => {
+    if (!summaryGroupsCompare) return null;
+    return {
+      fte: summaryGroupsCompare.reduce((s, g) => s + g.totalFte, 0),
+      totalCost: summaryGroupsCompare.reduce((s, g) => s + g.totalCost, 0),
+    };
+  }, [summaryGroupsCompare]);
+
+  // Merge primary + compare summaries by cost-center id, then by row label,
+  // so the comparison table can render rows that exist only on one side.
+  const mergedSummary = useMemo(() => {
+    if (!summaryGroupsCompare) return null;
+    const byId = new Map<string, { cc: CostCenter; primary?: CostCenterSummary; compare?: CostCenterSummary }>();
+    for (const g of summaryGroups) {
+      byId.set(g.costCenter.id, { cc: g.costCenter, primary: g });
+    }
+    for (const g of summaryGroupsCompare) {
+      const entry = byId.get(g.costCenter.id);
+      if (entry) entry.compare = g;
+      else byId.set(g.costCenter.id, { cc: g.costCenter, compare: g });
+    }
+    return Array.from(byId.values());
+  }, [summaryGroups, summaryGroupsCompare]);
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const toggle = (id: string) =>
@@ -205,6 +273,11 @@ export default function CostCentersPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 Cost Centers
+                {bundle.source === 'scenario' && bundle.scenarioName && (
+                  <Badge variant="outline" className="text-[10px]">
+                    scenario: {bundle.scenarioName}
+                  </Badge>
+                )}
               </CardTitle>
               <Button size="sm" onClick={() => setCreateOpen(true)}>
                 + Add Cost Center
@@ -252,9 +325,9 @@ export default function CostCentersPage() {
                   )}
 
                   <AllocationMatrix
-                    members={members}
+                    members={[...bundle.canonicalMembers, ...bundle.syntheticMembers] as Member[]}
                     costCenters={costCenters}
-                    allocations={allocations}
+                    allocations={bundle.baseAllocations}
                     capacitySettings={{
                       yearly_workable_days: settings?.yearly_workable_days ?? DEFAULT_SETTINGS.yearly_workable_days,
                       festivita_nazionali: settings?.festivita_nazionali ?? DEFAULT_SETTINGS.festivita_nazionali,
@@ -262,15 +335,58 @@ export default function CostCentersPage() {
                       malattia: settings?.malattia ?? DEFAULT_SETTINGS.malattia,
                       formazione: settings?.formazione ?? DEFAULT_SETTINGS.formazione,
                     }}
-                    onSetAllocation={setAllocation}
+                    readOnly
+                    resolveCellPercentage={resolveCellPercentage}
                   />
                 </TabsContent>
 
                 <TabsContent value="summary">
-                  {summaryGroups.length === 0 ? (
+                  {summaryGroups.length === 0 && !mergedSummary ? (
                     <p className="text-muted-foreground text-sm py-4">
                       No data to display. Make sure you have members assigned to cost centers.
                     </p>
+                  ) : mergedSummary && grandTotalCompare ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[200px]"></TableHead>
+                          <TableHead className="text-right">FTE @ {asOfDate}</TableHead>
+                          <TableHead className="text-right">FTE @ {compareDate}</TableHead>
+                          <TableHead className="text-right">Δ FTE</TableHead>
+                          <TableHead className="text-right">Costo @ {asOfDate}</TableHead>
+                          <TableHead className="text-right">Costo @ {compareDate}</TableHead>
+                          <TableHead className="text-right">Δ Costo</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {mergedSummary.map((entry) => (
+                          <CostCenterCompareSection
+                            key={entry.cc.id}
+                            costCenter={entry.cc}
+                            primary={entry.primary}
+                            compare={entry.compare}
+                            isCollapsed={collapsed[entry.cc.id] ?? false}
+                            onToggle={() => toggle(entry.cc.id)}
+                          />
+                        ))}
+                        <TableRow className="border-t-2 border-foreground/20 font-bold">
+                          <TableCell>Totale</TableCell>
+                          <TableCell className="text-right">{formatFte(grandTotal.fte)}</TableCell>
+                          <TableCell className="text-right">{formatFte(grandTotalCompare.fte)}</TableCell>
+                          <TableCell className="text-right">
+                            <DeltaCell value={grandTotalCompare.fte - grandTotal.fte} format={formatFte} />
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(grandTotal.totalCost)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(grandTotalCompare.totalCost)}</TableCell>
+                          <TableCell className="text-right">
+                            <DeltaCell
+                              value={grandTotalCompare.totalCost - grandTotal.totalCost}
+                              format={formatCurrency}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
                   ) : (
                     <Table>
                       <TableHeader>
@@ -395,9 +511,110 @@ function CostCenterSummarySection({
               {group.totalCost > 0
                 ? `${((row.totalCost / group.totalCost) * 100).toFixed(1)}%`
                 : '-'}
-            </TableCell>
+              </TableCell>
           </TableRow>
         ))}
     </>
   );
 }
+
+// --- Compare-mode section: same cost center at two dates with deltas ---
+
+function CostCenterCompareSection({
+  costCenter,
+  primary,
+  compare,
+  isCollapsed,
+  onToggle,
+}: {
+  costCenter: CostCenter;
+  primary?: CostCenterSummary;
+  compare?: CostCenterSummary;
+  isCollapsed: boolean;
+  onToggle: () => void;
+}) {
+  const primaryFte = primary?.totalFte ?? 0;
+  const compareFte = compare?.totalFte ?? 0;
+  const primaryCost = primary?.totalCost ?? 0;
+  const compareCost = compare?.totalCost ?? 0;
+
+  // Union of row labels across both sides, preserving seniority order where possible.
+  const rowLabels = useMemo(() => {
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    const push = (label: string) => {
+      if (!seen.has(label)) {
+        seen.add(label);
+        ordered.push(label);
+      }
+    };
+    primary?.rows.forEach((r) => push(r.label));
+    compare?.rows.forEach((r) => push(r.label));
+    const seniorityOrder = SENIORITY_LEVELS.map((s) => SENIORITY_LABELS[s]);
+    return ordered.sort((a, b) => {
+      const ai = seniorityOrder.indexOf(a);
+      const bi = seniorityOrder.indexOf(b);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+  }, [primary, compare]);
+
+  const getRow = (label: string, group?: CostCenterSummary): CostRow | undefined =>
+    group?.rows.find((r) => r.label === label);
+
+  return (
+    <>
+      <TableRow
+        className="bg-muted/50 cursor-pointer hover:bg-muted font-semibold"
+        onClick={onToggle}
+      >
+        <TableCell>
+          <span className="flex items-center gap-1.5">
+            <ChevronRight
+              className={cn(
+                'size-4 transition-transform',
+                !isCollapsed && 'rotate-90'
+              )}
+            />
+            {costCenter.code}
+          </span>
+        </TableCell>
+        <TableCell className="text-right">{formatFte(primaryFte)}</TableCell>
+        <TableCell className="text-right">{formatFte(compareFte)}</TableCell>
+        <TableCell className="text-right">
+          <DeltaCell value={compareFte - primaryFte} format={formatFte} />
+        </TableCell>
+        <TableCell className="text-right">{formatCurrency(primaryCost)}</TableCell>
+        <TableCell className="text-right">{formatCurrency(compareCost)}</TableCell>
+        <TableCell className="text-right">
+          <DeltaCell value={compareCost - primaryCost} format={formatCurrency} />
+        </TableCell>
+      </TableRow>
+
+      {!isCollapsed &&
+        rowLabels.map((label) => {
+          const p = getRow(label, primary);
+          const c = getRow(label, compare);
+          const pFte = p?.fte ?? 0;
+          const cFte = c?.fte ?? 0;
+          const pCost = p?.totalCost ?? 0;
+          const cCost = c?.totalCost ?? 0;
+          return (
+            <TableRow key={`${costCenter.id}-${label}`}>
+              <TableCell className="pl-10 text-muted-foreground">{label}</TableCell>
+              <TableCell className="text-right">{formatFte(pFte)}</TableCell>
+              <TableCell className="text-right">{formatFte(cFte)}</TableCell>
+              <TableCell className="text-right">
+                <DeltaCell value={cFte - pFte} format={formatFte} />
+              </TableCell>
+              <TableCell className="text-right">{formatCurrency(pCost)}</TableCell>
+              <TableCell className="text-right">{formatCurrency(cCost)}</TableCell>
+              <TableCell className="text-right">
+                <DeltaCell value={cCost - pCost} format={formatCurrency} />
+              </TableCell>
+            </TableRow>
+          );
+        })}
+    </>
+  );
+}
+
